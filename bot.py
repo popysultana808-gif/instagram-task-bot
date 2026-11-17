@@ -2012,9 +2012,7 @@ async def run_bot() -> None:
     # Start aiohttp web server for Render & UptimeRobot
     web_app = web.Application()
     web_app.router.add_get("/", health_handler)
-    web_app.router.add_head("/", health_handler)
     web_app.router.add_get("/health", health_handler)
-    web_app.router.add_head("/health", health_handler)
 
     runner = web.AppRunner(web_app)
     await runner.setup()
