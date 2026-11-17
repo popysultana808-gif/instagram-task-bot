@@ -32,9 +32,11 @@ from telegram.ext import (
 
 try:
     import psycopg2
+    from psycopg2 import pool as pg_pool
     from psycopg2.extras import RealDictCursor
 except ImportError:
     psycopg2 = None
+    pg_pool = None
     RealDictCursor = None
 
 # ==============================================================================
@@ -88,30 +90,54 @@ class Database:
         self.db_url = db_url
         self.use_pg = bool(db_url and psycopg2 is not None)
         self.sqlite_path = os.getenv("SQLITE_PATH", "bot_data.db")
+        self.pg_pool = None
+        if self.use_pg:
+            self.pg_pool = pg_pool.ThreadedConnectionPool(1, 10, dsn=self.db_url, sslmode="require")
         self._init_db()
 
-    def _connect(self):
+    def _get_conn(self):
         if self.use_pg:
-            return psycopg2.connect(self.db_url, sslmode="require")
+            conn = self.pg_pool.getconn()
+            if conn.closed:
+                self.pg_pool.putconn(conn, close=True)
+                conn = self.pg_pool.getconn()
+            return conn
         conn = sqlite3.connect(self.sqlite_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
 
+    def _put_conn(self, conn, close_conn: bool = False):
+        if self.use_pg:
+            self.pg_pool.putconn(conn, close=close_conn)
+        else:
+            conn.close()
+
     def _ph(self, query: str) -> str:
         return query.replace("?", "%s") if self.use_pg else query
 
+    def _run_with_retry(self, fn):
+        for attempt in range(2):
+            conn = self._get_conn()
+            close_conn = False
+            try:
+                return fn(conn)
+            except Exception as e:
+                if self.use_pg and attempt == 0 and isinstance(e, (psycopg2.OperationalError, psycopg2.InterfaceError)):
+                    close_conn = True
+                    continue
+                raise
+            finally:
+                self._put_conn(conn, close_conn=close_conn)
+
     def execute(self, query: str, params: Tuple = ()) -> None:
-        conn = self._connect()
-        try:
+        def _op(conn):
             cur = conn.cursor()
             cur.execute(self._ph(query), params)
             conn.commit()
-        finally:
-            conn.close()
+        self._run_with_retry(_op)
 
     def execute_insert_returning_id(self, query: str, params: Tuple = ()) -> int:
-        conn = self._connect()
-        try:
+        def _op(conn):
             cur = conn.cursor()
             if self.use_pg:
                 cur.execute(self._ph(query) + " RETURNING id", params)
@@ -121,40 +147,33 @@ class Database:
                 row_id = cur.lastrowid
             conn.commit()
             return row_id
-        finally:
-            conn.close()
+        return self._run_with_retry(_op)
 
     def fetchone(self, query: str, params: Tuple = ()) -> Optional[Dict[str, Any]]:
-        conn = self._connect()
-        try:
+        def _op(conn):
             if self.use_pg:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
                 cur.execute(self._ph(query), params)
                 row = cur.fetchone()
                 return dict(row) if row else None
-            else:
-                cur = conn.cursor()
-                cur.execute(query, params)
-                row = cur.fetchone()
-                return dict(row) if row else None
-        finally:
-            conn.close()
+            cur = conn.cursor()
+            cur.execute(query, params)
+            row = cur.fetchone()
+            return dict(row) if row else None
+        return self._run_with_retry(_op)
 
     def fetchall(self, query: str, params: Tuple = ()) -> List[Dict[str, Any]]:
-        conn = self._connect()
-        try:
+        def _op(conn):
             if self.use_pg:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
                 cur.execute(self._ph(query), params)
                 rows = cur.fetchall()
                 return [dict(r) for r in rows]
-            else:
-                cur = conn.cursor()
-                cur.execute(query, params)
-                rows = cur.fetchall()
-                return [dict(r) for r in rows]
-        finally:
-            conn.close()
+            cur = conn.cursor()
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            return [dict(r) for r in rows]
+        return self._run_with_retry(_op)
 
     def _init_db(self) -> None:
         serial_pk = "SERIAL PRIMARY KEY" if self.use_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
@@ -354,12 +373,21 @@ db = Database(DATABASE_URL)
 # ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================
+_SETTINGS_CACHE: Dict[str, str] = {}
+_ADMINS_CACHE: Optional[set] = None
+
+
 def get_setting(key: str, default: str = "") -> str:
+    if key in _SETTINGS_CACHE:
+        return _SETTINGS_CACHE[key]
     row = db.fetchone("SELECT value FROM settings WHERE key = ?", (key,))
-    return row["value"] if row else default
+    val = row["value"] if row else default
+    _SETTINGS_CACHE[key] = val
+    return val
 
 
 def set_setting(key: str, value: str) -> None:
+    _SETTINGS_CACHE[key] = value
     if db.use_pg:
         db.execute(
             "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
@@ -372,18 +400,24 @@ def set_setting(key: str, value: str) -> None:
         )
 
 
+def _load_admins() -> set:
+    global _ADMINS_CACHE
+    if _ADMINS_CACHE is None:
+        rows = db.fetchall("SELECT user_id FROM admins")
+        ids = {r["user_id"] for r in rows}
+        ids.add(OWNER_ID)
+        _ADMINS_CACHE = ids
+    return _ADMINS_CACHE
+
+
 def is_admin(user_id: int) -> bool:
     if user_id == OWNER_ID:
         return True
-    row = db.fetchone("SELECT user_id FROM admins WHERE user_id = ?", (user_id,))
-    return row is not None
+    return user_id in _load_admins()
 
 
 def get_all_admin_ids() -> List[int]:
-    rows = db.fetchall("SELECT user_id FROM admins")
-    ids = {r["user_id"] for r in rows}
-    ids.add(OWNER_ID)
-    return list(ids)
+    return list(_load_admins())
 
 
 def get_current_password() -> str:
@@ -1508,6 +1542,8 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         target_aid = int(parts[2])
         if target_aid != OWNER_ID:
             db.execute("DELETE FROM admins WHERE user_id = ?", (target_aid,))
+            global _ADMINS_CACHE
+            _ADMINS_CACHE = None
         await handle_admin_callback(query, context, "adm:admins")
         return
 
@@ -1854,6 +1890,8 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
             (aid, uid, now_str),
         )
         context.user_data.pop("state", None)
+        global _ADMINS_CACHE
+        _ADMINS_CACHE = None
         await msg.reply_text(f"✅ {aid} কে অ্যাডমিন করা হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
