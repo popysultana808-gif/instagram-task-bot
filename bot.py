@@ -282,6 +282,7 @@ class AsyncDatabase:
             "force_join_active": "0",
             "force_join_channel": "",
             "force_join_link": "",
+            "force_join_channels_json": "[]",
         }
         for k, v in defaults.items():
             await self.execute(
@@ -511,31 +512,51 @@ def validate_step_input(validator_type: str, text: str) -> Tuple[bool, str, str]
         return True, "", ""
 
 
+async def get_force_join_channels() -> List[Dict[str, str]]:
+    raw = await get_setting("force_join_channels_json", "[]")
+    try:
+        chs = json.loads(raw)
+        if chs:
+            return chs
+    except Exception:
+        pass
+    legacy_ch = await get_setting("force_join_channel", "")
+    legacy_lk = await get_setting("force_join_link", "")
+    if legacy_ch:
+        return [{"channel": legacy_ch, "link": legacy_lk or f"https://t.me/{legacy_ch.lstrip('@')}", "label": "Join Channel"}]
+    return []
+
+
 async def check_force_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     uid = update.effective_user.id
     if await is_admin(uid):
         return True
     if await get_setting("force_join_active", "0") != "1":
         return True
-    ch = await get_setting("force_join_channel", "")
-    if not ch:
+    channels = await get_force_join_channels()
+    if not channels:
         return True
     now_ts = time.time()
     if now_ts - _FJOIN_OK_CACHE.get(uid, 0) < 60:
         return True
-    try:
-        member = await context.bot.get_chat_member(chat_id=ch, user_id=uid)
-        if member.status in ("member", "administrator", "creator"):
-            _FJOIN_OK_CACHE[uid] = now_ts
-            return True
-    except Exception:
+
+    unjoined = []
+    for ch_obj in channels:
+        ch = ch_obj["channel"]
+        try:
+            member = await context.bot.get_chat_member(chat_id=ch, user_id=uid)
+            if member.status not in ("member", "administrator", "creator"):
+                unjoined.append(ch_obj)
+        except Exception:
+            continue
+
+    if not unjoined:
+        _FJOIN_OK_CACHE[uid] = now_ts
         return True
 
-    link = await get_setting("force_join_link", "") or f"https://t.me/{ch.lstrip('@')}"
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📢 Join Channel", url=link)],
-        [InlineKeyboardButton("✅ Joined / Check Again", callback_data="fjoin:check")],
-    ])
+    btns = [[InlineKeyboardButton(f"📢 {c.get('label', 'Join Channel')}", url=c["link"])] for c in unjoined]
+    btns.append([InlineKeyboardButton("✅ Joined / Check Again", callback_data="fjoin:check")])
+    kb = InlineKeyboardMarkup(btns)
     if update.effective_message:
         await update.effective_message.reply_text(
             "📢 বটটি ব্যবহার করতে প্রথমে আমাদের অফিসিয়াল চ্যানেলে জয়েন করুন, তারপর নিচের <b>Joined</b> বাটনে চাপ দিন:",
@@ -953,8 +974,9 @@ async def handle_file_submit_menu(update: Update) -> None:
     if not cats:
         await update.message.reply_text("👤 No file submit categories are active right now.")
         return
-    kb = [[InlineKeyboardButton(f"📁 {c['name']}", callback_data=f"fsub:cat:{c['id']}")] for c in cats]
-    await update.message.reply_text("📁 Select a file category:", reply_markup=InlineKeyboardMarkup(kb))
+    rows = [[KeyboardButton(f"📁 {c['name']} Submit ▸")] for c in cats]
+    rows.append([KeyboardButton("❌ Cancel")])
+    await update.message.reply_text("📁 Select a file category:", reply_markup=ReplyKeyboardMarkup(rows, resize_keyboard=True))
 
 
 async def handle_guide_menu(update: Update) -> None:
@@ -1115,15 +1137,20 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
 
     if action == "fjoin_mgr":
         fj_active = (await get_setting("force_join_active", "0")) == "1"
-        ch = await get_setting("force_join_channel", "সেট করা নেই")
-        lk = await get_setting("force_join_link", "সেট করা নেই")
+        channels = await get_force_join_channels()
         kb = [
             [InlineKeyboardButton(f"{'🟢 Turn OFF' if fj_active else '🔴 Turn ON'} Force Join", callback_data="adm:fjoin_tog")],
-            [InlineKeyboardButton("✏️ Set Channel & Link", callback_data="adm:fjoin_set")],
-            [InlineKeyboardButton("⬅️ Back to Admin Panel", callback_data="adm:home")],
         ]
+        for idx, c in enumerate(channels):
+            kb.append([
+                InlineKeyboardButton(f"✏️ {c.get('label', c['channel'])}", callback_data=f"adm:fjoin_edit:{idx}"),
+                InlineKeyboardButton("🗑 Delete", callback_data=f"adm:fjoin_del:{idx}"),
+            ])
+        kb.append([InlineKeyboardButton("➕ Add Channel Link", callback_data="adm:fjoin_add")])
+        kb.append([InlineKeyboardButton("⬅️ Back to Admin Panel", callback_data="adm:home")])
+        ch_txt = "\n".join([f"{i+1}. <b>{c.get('label','Channel')}</b>: <code>{c['channel']}</code>" for i, c in enumerate(channels)]) or "কোনো চ্যানেল যুক্ত নেই।"
         await query.edit_message_text(
-            f"📢 <b>Force Join Settings</b>\n• Channel: <code>{ch}</code>\n• Link: {lk}",
+            f"📢 <b>Force Join Channels ({len(channels)}টি)</b>\n\n{ch_txt}",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(kb),
         )
@@ -1135,9 +1162,32 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await handle_admin_callback(query, context, "adm:fjoin_mgr")
         return
 
-    if action == "fjoin_set":
-        context.user_data["state"] = "adm_fjoin_set"
-        await query.edit_message_text("<code>@channel_username | https://t.me/link</code> ফরম্যাটে লিখুন:", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+    if action == "fjoin_add":
+        context.user_data["state"] = "adm_fjoin_add"
+        await query.edit_message_text(
+            "নতুন চ্যানেল এই ফরম্যাটে লিখুন:\n<code>@channel_username | https://t.me/link | Button Name</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_to_admin_kb(),
+        )
+        return
+
+    if action == "fjoin_edit":
+        idx = int(parts[2])
+        context.user_data["state"] = f"adm_fjoin_edit:{idx}"
+        await query.edit_message_text(
+            "নতুন তথ্য এই ফরম্যাটে লিখুন:\n<code>@channel_username | https://t.me/link | Button Name</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_to_admin_kb(),
+        )
+        return
+
+    if action == "fjoin_del":
+        idx = int(parts[2])
+        channels = await get_force_join_channels()
+        if 0 <= idx < len(channels):
+            channels.pop(idx)
+            await set_setting("force_join_channels_json", json.dumps(channels, ensure_ascii=False))
+        await handle_admin_callback(query, context, "adm:fjoin_mgr")
         return
 
     if action == "view_inbox_ask":
@@ -1152,6 +1202,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         header = f"👁 <b>User Inbox & Activity</b>\n👤 {usr['full_name'] if usr else tuid} (<code>{tuid}</code>)\n\n"
         log_lines = [f"• [{l['created_at'][11:16]}] <b>{l['action_type']}</b>: {l['detail']}" for l in reversed(logs)] or ["কোনো অ্যাক্টিভিটি নেই।"]
         kb = [
+            [InlineKeyboardButton("👤 Open Telegram Chat", url=f"tg://user?id={tuid}")],
             [InlineKeyboardButton("📩 Send Message / File to Inbox", callback_data=f"adm:inbox_direct:{tuid}")],
             [InlineKeyboardButton("🔄 Refresh", callback_data=f"adm:view_inbox:{tuid}")],
             [InlineKeyboardButton("⬅️ Back to Admin Panel", callback_data="adm:home")],
@@ -1664,6 +1715,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await send_next_step_prompt(update.effective_chat.id, context, task)
                 return
 
+    # Check File Submit Reply Keyboard buttons
+    if text.startswith("📁 ") and text.endswith(" Submit ▸"):
+        cat_name = text[2:-9].strip()
+        context.user_data["state"] = f"user_fsub:{cat_name}"
+        await update.message.reply_text(
+            f"📤 অনুগ্রহ করে <b>{cat_name}</b>-এর জন্য আপনার ফাইলটি এখানে পাঠান:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=ReplyKeyboardMarkup([[KeyboardButton("❌ Cancel")]], resize_keyboard=True),
+        )
+        return
+
     # Main Menu Buttons
     if text in ("📁 File Submit", "File Submit"):
         log_activity_bg(uid, "MENU", "File Submit")
@@ -1774,9 +1836,13 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         return
 
     if state.startswith("user_fsub:"):
+        if text in ("❌ Cancel", "Cancel"):
+            context.user_data.pop("state", None)
+            await msg.reply_text("Back to main menu.", reply_markup=await main_keyboard(uid))
+            return
         cat_name = state.split(":", 1)[1]
         if not msg.document:
-            await msg.reply_text("❌ অনুগ্রহ করে একটি ডকুমেন্ট/ফাইল পাঠান।")
+            await msg.reply_text("❌ অনুগ্রহ করে একটি ডকুমেন্ট/ফাইল পাঠান অথবা ❌ Cancel চাপুন।")
             return
         now_str = datetime.datetime.now(BD_TZ).strftime("%Y-%m-%d %H:%M:%S")
         await db.execute(
@@ -1785,7 +1851,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         )
         log_activity_bg(uid, "FILE_SUBMIT", f"{cat_name}: {msg.document.file_name}")
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ আপনার ফাইলটি অ্যাডমিনের কাছে জমা দেওয়া হয়েছে!")
+        await msg.reply_text("✅ আপনার ফাইলটি অ্যাডমিনের কাছে জমা দেওয়া হয়েছে!", reply_markup=await main_keyboard(uid))
         for adm_id in await get_all_admin_ids():
             try:
                 await context.bot.send_document(
@@ -1813,6 +1879,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         header = f"👁 <b>User Inbox & Activity</b>\n👤 {usr['full_name'] if usr else tuid} (<code>{tuid}</code>)\n\n"
         log_lines = [f"• [{l['created_at'][11:16]}] <b>{l['action_type']}</b>: {l['detail']}" for l in reversed(logs)] or ["কোনো অ্যাক্টিভিটি নেই।"]
         kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("👤 Open Telegram Chat", url=f"tg://user?id={tuid}")],
             [InlineKeyboardButton("📩 Send Message / File to Inbox", callback_data=f"adm:inbox_direct:{tuid}")],
             [InlineKeyboardButton("⬅️ Back to Admin Panel", callback_data="adm:home")],
         ])
@@ -1853,15 +1920,24 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         await msg.reply_text(f"📢 ব্রডকাস্ট সম্পন্ন! পাঠানো হয়েছে: <b>{sent}টি</b> চ্যাট/গ্রুপে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
         return
 
-    if state == "adm_fjoin_set":
-        if "|" not in text:
-            await msg.reply_text("❌ ফরম্যাট: `@channel | https://t.me/link`")
+    if state == "adm_fjoin_add" or state.startswith("adm_fjoin_edit:"):
+        p = [x.strip() for x in text.split("|")]
+        if len(p) < 2:
+            await msg.reply_text("❌ ফরম্যাট: <code>@channel | https://t.me/link | Button Name</code>", parse_mode=ParseMode.HTML)
             return
-        ch, lk = [x.strip() for x in text.split("|", 1)]
-        await set_setting("force_join_channel", ch)
-        await set_setting("force_join_link", lk)
+        ch, lk = p[0], p[1]
+        lbl = p[2] if len(p) >= 3 else f"Join {ch}"
+        channels = await get_force_join_channels()
+        entry = {"channel": ch, "link": lk, "label": lbl}
+        if state == "adm_fjoin_add":
+            channels.append(entry)
+        else:
+            idx = int(state.split(":")[1])
+            if 0 <= idx < len(channels):
+                channels[idx] = entry
+        await set_setting("force_join_channels_json", json.dumps(channels, ensure_ascii=False))
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ Force Join আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ Force Join চ্যানেল আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_upload_report":
