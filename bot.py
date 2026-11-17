@@ -279,6 +279,18 @@ class AsyncDatabase:
             "password_reset_time": "00:00",
             "support_link": "https://t.me/Talha_juba098",
             "extra_buttons_json": "[]",
+            "main_btns_json": json.dumps({
+                "work": "💼 Work",
+                "fsub": "📁 File Submit",
+                "bal": "💰 Balance",
+                "wd": "💸 Withdraw",
+                "ref": "🎁 My Referral",
+                "sup": "🆘 Support",
+                "new": "🆕 I'm New"
+            }, ensure_ascii=False),
+            "msg_welcome": "⭐ Welcome to {bot_name}!\n\n⭐ এই Bot-এর মাধ্যমে আপনি খুব সহজেই আপনার Facebook / Instagram / অন্যান্য File Submit করতে পারবেন।\n\n⭐ File Submit করার আগে অবশ্যই সকল Rules অনুসরণ করুন।\n\n⭐ নিচের Menu থেকে আপনার প্রয়োজনীয় Option নির্বাচন করে File Submit করুন।",
+            "msg_support": "💬 <b>Customer Support</b>\n\nDear member,\nContact our support team for any problem or question. We will try to solve it quickly.",
+            "msg_ref_rules": "⚠️ <b>Referral Rules</b>\n\n• আপনার রেফারেল লিংক দিয়ে কেউ জয়েন করে কাজ করলে প্রতি কাজের জন্য আপনি <b>৳{bonus}</b> করে বোনাস পাবেন!\n• Fake/spam accounts may have commission cancelled.\n• You cannot refer yourself.",
             "force_join_active": "0",
             "force_join_channel": "",
             "force_join_link": "",
@@ -566,7 +578,22 @@ async def check_force_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return False
 
 
+async def get_main_btn_labels() -> Dict[str, str]:
+    raw = await get_setting("main_btns_json", "{}")
+    defaults = {
+        "work": "💼 Work", "fsub": "📁 File Submit", "bal": "💰 Balance",
+        "wd": "💸 Withdraw", "ref": "🎁 My Referral", "sup": "🆘 Support", "new": "🆕 I'm New"
+    }
+    try:
+        loaded = json.loads(raw)
+        defaults.update(loaded)
+    except Exception:
+        pass
+    return defaults
+
+
 async def main_keyboard(user_id: int) -> ReplyKeyboardMarkup:
+    lbl = await get_main_btn_labels()
     extra_raw = await get_setting("extra_buttons_json", "[]")
     try:
         extra_btns = json.loads(extra_raw)
@@ -574,10 +601,10 @@ async def main_keyboard(user_id: int) -> ReplyKeyboardMarkup:
         extra_btns = []
 
     rows = [
-        [KeyboardButton("💼 Work"), KeyboardButton("📁 File Submit")],
-        [KeyboardButton("💰 Balance"), KeyboardButton("💸 Withdraw")],
-        [KeyboardButton("🎁 My Referral"), KeyboardButton("🆘 Support")],
-        [KeyboardButton("🆕 আমি নতুন")],
+        [KeyboardButton(lbl["work"]), KeyboardButton(lbl["fsub"])],
+        [KeyboardButton(lbl["bal"]), KeyboardButton(lbl["wd"])],
+        [KeyboardButton(lbl["ref"]), KeyboardButton(lbl["sup"])],
+        [KeyboardButton(lbl["new"])],
     ]
     for i in range(0, len(extra_btns), 2):
         rows.append([KeyboardButton(b["label"]) for b in extra_btns[i : i + 2]])
@@ -640,7 +667,11 @@ async def admin_panel_keyboard() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("📢 Broadcast", callback_data="adm:broadcast"),
+            InlineKeyboardButton("📝 Edit Bot Messages", callback_data="adm:edit_msgs"),
+        ],
+        [
             InlineKeyboardButton("🆘 Edit Support Link", callback_data="adm:edit_support"),
+            InlineKeyboardButton("❌ Close Panel", callback_data="adm:close"),
         ],
     ]
     return InlineKeyboardMarkup(kb)
@@ -721,12 +752,8 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     log_activity_bg(u.id, "START", "/start")
     bot_name = context.bot.first_name or "Fast Account Bot"
-    welcome_text = (
-        f"⭐ Welcome to <b>{bot_name}</b>!\n\n"
-        "⭐ এই Bot-এর মাধ্যমে আপনি খুব সহজেই আপনার Facebook / Instagram / অন্যান্য File Submit করতে পারবেন।\n\n"
-        "⭐ File Submit করার আগে অবশ্যই সকল Rules অনুসরণ করুন।\n\n"
-        "⭐ নিচের Menu থেকে আপনার প্রয়োজনীয় Option নির্বাচন করে File Submit করুন।"
-    )
+    tpl = await get_setting("msg_welcome", "⭐ Welcome to {bot_name}!")
+    welcome_text = tpl.replace("{bot_name}", f"<b>{bot_name}</b>")
     await update.message.reply_text(
         welcome_text,
         parse_mode=ParseMode.HTML,
@@ -821,11 +848,6 @@ async def handle_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         return True
 
     if fingerprint:
-        dup = await db.fetchone("SELECT id FROM submissions WHERE token_fingerprint = ?", (fingerprint,))
-        if dup:
-            dmsg = await update.message.reply_text("❌ এই Hotmail টি আগেই সাবমিট করা হয়েছে! নতুন একটি দিন।")
-            task["msg_ids"].append(dmsg.message_id)
-            return True
         task["token_fingerprint"] = fingerprint
 
     task["collected"][current_step["name"]] = text.strip()
@@ -842,11 +864,9 @@ async def handle_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         except Exception:
             pass
 
-    ver_msg = await context.bot.send_message(
-        chat_id=chat_id,
-        text="⏳ Verifying submission...",
-        reply_markup=await main_keyboard(uid),
-    )
+    cat_id = task.get("cat_id")
+    ret_kb = await work_subcategories_keyboard(cat_id) if cat_id else await main_keyboard(uid)
+    await context.bot.send_message(chat_id=chat_id, text="⏳ Verifying submission...")
 
     now_str = datetime.datetime.now(BD_TZ).strftime("%Y-%m-%d %H:%M:%S")
     sub_id = await db.execute_insert_returning_id(
@@ -871,14 +891,21 @@ async def handle_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         ),
     )
     log_activity_bg(uid, "SUBMIT_TASK", f"#{sub_id} {task['sub_name']} (@{task['gen_username']})")
+    sub_id_for_btn = task["sub_id"]
     context.user_data.pop("active_task", None)
-    context.user_data.pop("nav", None)
-    await ver_msg.edit_text("✅ Submitted! Sent to admin review.")
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text="✅ Submitted! Sent to admin review.",
+        reply_markup=ret_kb,
+    )
 
     pending_cnt = (
         await db.fetchone("SELECT COUNT(*) AS cnt FROM submissions WHERE user_id = ? AND status = 'pending'", (uid,))
     )["cnt"]
     u = update.effective_user
+    recv_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"📥 Receive ({pending_cnt}টি)", callback_data=f"adm:recv:{u.id}:{sub_id_for_btn}")]
+    ])
     for adm_id in await get_all_admin_ids():
         try:
             await context.bot.send_message(
@@ -887,9 +914,10 @@ async def handle_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, t
                     f"📥 <b>নতুন সাবমিশন!</b> (#{sub_id})\n"
                     f"👤 ইউজার: {u.full_name} (<code>{u.id}</code>)\n"
                     f"📂 কাজ: {task['sub_name']} (৳{task['rate']:.0f})\n"
-                    f"📦 এই ইউজারের মোট Pending: <b>{pending_cnt}টি</b>"
+                    f"📦 মোট Pending: <b>{pending_cnt}টি</b>"
                 ),
                 parse_mode=ParseMode.HTML,
+                reply_markup=recv_kb,
             )
         except Exception:
             pass
@@ -908,11 +936,11 @@ async def handle_balance(update: Update) -> None:
     )["cnt"]
     text = (
         "💰 <b>Your Balance</b>\n\n"
-        f"💵 <b>মোট ব্যালেন্স:</b> ৳{u['balance']:.2f}\n"
-        f"⏳ <b>পেন্ডিং উইথড্র:</b> ৳{u['pending_withdraw']:.2f}\n"
-        f"📈 <b>টোটাল ইনকাম:</b> ৳{u['total_income']:.2f}\n"
-        f"✅ <b>কমপ্লিট জব:</b> {u['completed_jobs']}টি\n"
-        f"🔍 <b>ইন রিভিউ জব:</b> {in_review}টি"
+        f"💵 <b>Total Balance:</b> ৳{u['balance']:.2f}\n"
+        f"⏳ <b>Pending Withdraw:</b> ৳{u['pending_withdraw']:.2f}\n"
+        f"📈 <b>Total Income:</b> ৳{u['total_income']:.2f}\n"
+        f"✅ <b>Completed Jobs:</b> {u['completed_jobs']}\n"
+        f"🔍 <b>In Review Jobs:</b> {in_review}"
     )
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
@@ -1009,13 +1037,8 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if data == "ref:rules":
         bonus = float(await get_setting("referral_bonus", "3"))
-        await query.message.reply_text(
-            "⚠️ <b>Referral Rules</b>\n\n"
-            f"• আপনার রেফারেল লিংক দিয়ে কেউ জয়েন করে কাজ করলে প্রতি কাজের জন্য আপনি <b>৳{bonus:.0f}</b> করে বোনাস পাবেন!\n"
-            "• Fake/spam accounts may have commission cancelled.\n"
-            "• You cannot refer yourself.",
-            parse_mode=ParseMode.HTML,
-        )
+        rtpl = await get_setting("msg_ref_rules", "⚠️ <b>Referral Rules</b>\n\n• প্রতি কাজের জন্য আপনি ৳{bonus} করে বোনাস পাবেন!")
+        await query.message.reply_text(rtpl.replace("{bonus}", f"{bonus:.0f}"), parse_mode=ParseMode.HTML)
         return
 
     if data == "ref:leaderboard":
@@ -1119,6 +1142,35 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
     global _CATS_CACHE, _ADMINS_CACHE
     parts = data.split(":")
     action = parts[1]
+
+    if action == "close":
+        context.user_data.pop("state", None)
+        try:
+            await query.message.delete()
+        except Exception:
+            await query.edit_message_text("✅ Admin Panel closed.")
+        return
+
+    if action == "edit_msgs":
+        kb = [
+            [InlineKeyboardButton("👋 Edit Welcome Message", callback_data="adm:emsg:msg_welcome")],
+            [InlineKeyboardButton("💬 Edit Support Message", callback_data="adm:emsg:msg_support")],
+            [InlineKeyboardButton("⚠️ Edit Referral Rules", callback_data="adm:emsg:msg_ref_rules")],
+            [InlineKeyboardButton("⬅️ Back to Admin Panel", callback_data="adm:home")],
+        ]
+        await query.edit_message_text("📝 <b>Edit Bot Messages</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    if action == "emsg":
+        mkey = parts[2]
+        context.user_data["state"] = f"adm_emsg:{mkey}"
+        cur_val = await get_setting(mkey, "")
+        await query.edit_message_text(
+            f"বর্তমান মেসেজ:\n<code>{cur_val}</code>\n\nনতুন মেসেজটি লিখে পাঠান:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_to_admin_kb(),
+        )
+        return
 
     if action == "home":
         context.user_data.pop("state", None)
@@ -1304,7 +1356,10 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
             )
         except Exception:
             pass
-        await query.edit_message_text(f"✅ Batch #{batch_id} রিসিভ সম্পন্ন হয়েছে।", reply_markup=back_to_admin_kb())
+        try:
+            await query.message.delete()
+        except Exception:
+            await query.edit_message_text(f"✅ Batch #{batch_id} রিসিভ সম্পন্ন হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if action == "upload_report":
@@ -1476,11 +1531,20 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         return
 
     if action == "btn_mgr":
+        lbls = await get_main_btn_labels()
         extra_btns = json.loads(await get_setting("extra_buttons_json", "[]"))
-        kb = [[InlineKeyboardButton(f"🗑 Remove: {b['label']}", callback_data=f"adm:btn_del:{i}")] for i, b in enumerate(extra_btns)]
-        kb.append([InlineKeyboardButton("➕ Add Main Button", callback_data="adm:btn_add")])
+        kb = [[InlineKeyboardButton(f"✏️ Rename: {v}", callback_data=f"adm:mbtn_edit:{k}")] for k, v in lbls.items()]
+        for i, b in enumerate(extra_btns):
+            kb.append([InlineKeyboardButton(f"🗑 Remove Extra: {b['label']}", callback_data=f"adm:btn_del:{i}")])
+        kb.append([InlineKeyboardButton("➕ Add Extra Main Button", callback_data="adm:btn_add")])
         kb.append([InlineKeyboardButton("⬅️ Back to Admin Panel", callback_data="adm:home")])
-        await query.edit_message_text("⌨️ <b>Main Keyboard Extra Buttons</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+        await query.edit_message_text("⌨️ <b>Main Keyboard Buttons Manager</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    if action == "mbtn_edit":
+        bkey = parts[2]
+        context.user_data["state"] = f"adm_mbtn_edit:{bkey}"
+        await query.edit_message_text("বাটনের নতুন নাম (ইমোজিসহ) লিখুন:", reply_markup=back_to_admin_kb())
         return
 
     if action == "btn_add":
@@ -1649,8 +1713,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await handle_stateful_message(update, context, state)
         return
 
+    lbl = await get_main_btn_labels()
     # Navigation inside Work Reply Keyboards
-    if text in ("◀️ Work Menu ▸", "💼 Work", "Work"):
+    if text in ("◀️ Work Menu ▸", lbl["work"], "💼 Work", "Work"):
         log_activity_bg(uid, "MENU", text)
         await handle_work_menu(update, context)
         return
@@ -1699,6 +1764,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 )
                 info_msg = await update.message.reply_text(info_text, parse_mode=ParseMode.HTML)
                 task = {
+                    "cat_id": c["id"],
                     "sub_id": s["id"],
                     "sub_name": s["name"],
                     "rate": float(s["rate"]),
@@ -1727,29 +1793,28 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     # Main Menu Buttons
-    if text in ("📁 File Submit", "File Submit"):
+    if text in (lbl["fsub"], "📁 File Submit", "File Submit"):
         log_activity_bg(uid, "MENU", "File Submit")
         await handle_file_submit_menu(update)
-    elif text in ("💰 Balance", "Balance"):
+    elif text in (lbl["bal"], "💰 Balance", "Balance"):
         log_activity_bg(uid, "MENU", "Balance")
         await handle_balance(update)
-    elif text in ("💸 Withdraw", "Withdraw"):
+    elif text in (lbl["wd"], "💸 Withdraw", "Withdraw"):
         log_activity_bg(uid, "MENU", "Withdraw")
         await handle_withdraw_start(update)
-    elif text in ("🎁 My Referral", "My Referral"):
+    elif text in (lbl["ref"], "🎁 My Referral", "My Referral"):
         log_activity_bg(uid, "MENU", "My Referral")
         await handle_referral(update, context)
-    elif text in ("🆘 Support", "Support"):
+    elif text in (lbl["sup"], "🆘 Support", "Support"):
         log_activity_bg(uid, "MENU", "Support")
         sup = await get_setting("support_link", "https://t.me/Talha_juba098")
+        sup_msg = await get_setting("msg_support", "💬 <b>Customer Support</b>\n\nDear member,\nContact our support team for any problem or question. We will try to solve it quickly.")
         await update.message.reply_text(
-            "💬 <b>Customer Support</b>\n\n"
-            "Dear member,\n"
-            "Contact our support team for any problem or question. We will try to solve it quickly.",
+            sup_msg,
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📞 Contact Support", url=sup)]]),
         )
-    elif text in ("🆕 আমি নতুন", "আমি নতুন"):
+    elif text in (lbl["new"], "🆕 I'm New", "🆕 আমি নতুন", "আমি নতুন"):
         log_activity_bg(uid, "MENU", "আমি নতুন")
         await handle_guide_menu(update)
     elif text == "⚙️ Admin Panel" and await is_admin(uid):
@@ -2113,6 +2178,22 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         _ADMINS_CACHE = None
         context.user_data.pop("state", None)
         await msg.reply_text(f"✅ {aid} কে অ্যাডমিন করা হয়েছে।", reply_markup=back_to_admin_kb())
+        return
+
+    if state.startswith("adm_emsg:"):
+        mkey = state.split(":", 1)[1]
+        await set_setting(mkey, text)
+        context.user_data.pop("state", None)
+        await msg.reply_text("✅ মেসেজ আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
+        return
+
+    if state.startswith("adm_mbtn_edit:"):
+        bkey = state.split(":", 1)[1]
+        lbls = await get_main_btn_labels()
+        lbls[bkey] = text
+        await set_setting("main_btns_json", json.dumps(lbls, ensure_ascii=False))
+        context.user_data.pop("state", None)
+        await msg.reply_text("✅ বাটনের নাম আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_edit_support":
