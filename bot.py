@@ -241,15 +241,46 @@ class AsyncDatabase:
                 created_at TEXT,
                 processed_at TEXT
             )""",
-            f"CREATE TABLE IF NOT EXISTS file_submit_categories (id {serial_pk}, name TEXT NOT NULL UNIQUE, is_active INTEGER DEFAULT 1)",
+            f"""CREATE TABLE IF NOT EXISTS file_submit_categories (
+                id {serial_pk},
+                name TEXT NOT NULL UNIQUE,
+                cutoff_time TEXT DEFAULT '10:00 PM',
+                rate REAL DEFAULT 5.0,
+                usdt_rate REAL DEFAULT 0.0394,
+                required_format TEXT DEFAULT 'Uid pas cookies',
+                report_col TEXT DEFAULT 'UID',
+                is_active INTEGER DEFAULT 1
+            )""",
             f"""CREATE TABLE IF NOT EXISTS file_submissions (
                 id {serial_pk},
                 user_id BIGINT NOT NULL,
+                category_id INTEGER,
                 category_name TEXT NOT NULL,
+                rate REAL DEFAULT 5.0,
+                total_rows INTEGER DEFAULT 0,
                 file_id TEXT NOT NULL,
                 file_name TEXT,
                 status TEXT DEFAULT 'pending',
                 created_at TEXT
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS file_submit_rows (
+                id {serial_pk},
+                fsub_id INTEGER NOT NULL,
+                user_id BIGINT NOT NULL,
+                category_id INTEGER NOT NULL,
+                category_name TEXT NOT NULL,
+                rate REAL NOT NULL,
+                identifier TEXT NOT NULL,
+                raw_line TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS work_admin_notifs (
+                id {serial_pk},
+                user_id BIGINT NOT NULL,
+                sub_id INTEGER NOT NULL,
+                admin_id BIGINT NOT NULL,
+                message_id BIGINT NOT NULL
             )""",
             f"""CREATE TABLE IF NOT EXISTS guide_categories (
                 id {serial_pk},
@@ -261,6 +292,23 @@ class AsyncDatabase:
         ]
         for stmt in statements:
             await self.execute(stmt)
+
+        # Safe column migrations for existing databases
+        migrations = [
+            "ALTER TABLE file_submit_categories ADD COLUMN cutoff_time TEXT DEFAULT '10:00 PM'",
+            "ALTER TABLE file_submit_categories ADD COLUMN rate REAL DEFAULT 5.0",
+            "ALTER TABLE file_submit_categories ADD COLUMN usdt_rate REAL DEFAULT 0.0394",
+            "ALTER TABLE file_submit_categories ADD COLUMN required_format TEXT DEFAULT 'Uid pas cookies'",
+            "ALTER TABLE file_submit_categories ADD COLUMN report_col TEXT DEFAULT 'UID'",
+            "ALTER TABLE file_submissions ADD COLUMN category_id INTEGER",
+            "ALTER TABLE file_submissions ADD COLUMN rate REAL DEFAULT 5.0",
+            "ALTER TABLE file_submissions ADD COLUMN total_rows INTEGER DEFAULT 0",
+        ]
+        for m in migrations:
+            try:
+                await self.execute(m)
+            except Exception:
+                pass
 
         now_str = datetime.datetime.now(BD_TZ).strftime("%Y-%m-%d %H:%M:%S")
         await self.execute(
@@ -320,6 +368,13 @@ class AsyncDatabase:
             await self.execute(
                 "INSERT INTO subcategories (category_id, name, rate, steps_json, is_active) VALUES (?, ?, ?, ?, ?)",
                 (cat_id, "USA Instagram", 5.0, json.dumps(default_steps, ensure_ascii=False), 1),
+            )
+
+        existing_fsub = await self.fetchone("SELECT id FROM file_submit_categories LIMIT 1")
+        if not existing_fsub:
+            await self.execute(
+                "INSERT INTO file_submit_categories (name, cutoff_time, rate, usdt_rate, required_format, report_col, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)",
+                ("Fb cookies", "10:00 PM", 5.0, 0.0394, "Uid pas cookies", "UID"),
             )
 
         existing_guide = await self.fetchone("SELECT id FROM guide_categories LIMIT 1")
@@ -638,8 +693,11 @@ async def admin_panel_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(fj_label, callback_data="adm:fjoin_mgr"),
         ],
         [
-            InlineKeyboardButton("📂 Pending Files", callback_data="adm:pending_files"),
-            InlineKeyboardButton("📤 Upload Report (.xlsx)", callback_data="adm:upload_report"),
+            InlineKeyboardButton("📂 Pending Work", callback_data="adm:pending_files"),
+            InlineKeyboardButton("📤 Work Report (.xlsx)", callback_data="adm:upload_report"),
+        ],
+        [
+            InlineKeyboardButton("📊 File Submit Report (.xlsx)", callback_data="adm:fsub_report_pick"),
         ],
         [
             InlineKeyboardButton("👁 View User Inbox", callback_data="adm:view_inbox_ask"),
@@ -710,6 +768,79 @@ def classify_excel_color(cell) -> Optional[str]:
     if r > g + 30 and r > b + 30:
         return "red"
     return None
+
+
+def _validate_token_part(field: str, val: str) -> bool:
+    f = field.lower()
+    v = val.strip()
+    if not v:
+        return False
+    if f in ("uid", "username", "id"):
+        return len(v) >= 3
+    if f in ("pas", "pass", "password"):
+        return len(v) >= 2
+    if f in ("cookies", "cookie"):
+        return ("c_user=" in v and "xs=" in v) or ("sessionid=" in v) or len(v) >= 20
+    if f in ("2fa", "twofa"):
+        return len(v.replace(" ", "")) >= 8
+    if f in ("hotmail", "outlook", "fr_outlook", "fr", "recovery", "email", "mail"):
+        return "@" in v and "." in v
+    return len(v) >= 2
+
+
+def parse_and_validate_fsub_excel(bio: io.BytesIO, required_format: str) -> Tuple[List[Tuple[str, str]], str]:
+    try:
+        wb = openpyxl.load_workbook(bio, data_only=True)
+    except Exception:
+        return [], "❌ ফাইলটি পড়া যায়নি! সঠিক <b>.xlsx</b> ফাইল দিন।"
+    ws = wb.active
+    fields = [x.strip().lower() for x in re.split(r"[\s|,]+", required_format.strip()) if x.strip()]
+    if not fields:
+        fields = ["uid"]
+
+    raw_rows = []
+    for r in ws.iter_rows(values_only=True):
+        vals = [str(c).strip() if c is not None else "" for c in r]
+        if any(vals):
+            raw_rows.append(vals)
+
+    if not raw_rows:
+        return [], "❌ এক্সেল ফাইলটি খালি!"
+
+    # Skip header row if first cell looks like header word
+    first_cell_low = raw_rows[0][0].lower()
+    if first_cell_low in ("uid", "id", "username", "sl", "account", "email"):
+        raw_rows = raw_rows[1:]
+    if not raw_rows:
+        return [], "❌ ফাইলে কোনো অ্যাকাউন্টের সারি পাওয়া যায়নি!"
+
+    parsed: List[Tuple[str, str]] = []
+    for row_idx, vals in enumerate(raw_rows):
+        non_empty = [v for v in vals if v != ""]
+        # Support single-cell pipe/space format OR multi-column format
+        if len(non_empty) == 1 and ("|" in non_empty[0] or " " in non_empty[0]) and len(fields) > 1:
+            sep = "|" if "|" in non_empty[0] else None
+            parts = [x.strip() for x in (non_empty[0].split("|") if sep else non_empty[0].split(None, len(fields) - 1))]
+        else:
+            parts = vals[:len(fields)]
+            while len(parts) < len(fields):
+                parts.append("")
+
+        # Validate fields; password is required on first data row (row_idx == 0), optional afterwards
+        for fi, fname in enumerate(fields):
+            val = parts[fi] if fi < len(parts) else ""
+            if fname in ("pas", "pass", "password"):
+                if row_idx == 0 and not _validate_token_part(fname, val):
+                    return [], f"❌ প্রথম সারিতে <b>Password</b> বাধ্যতামূলক! অনুগ্রহ করে ফরম্যাট <code>{required_format}</code> অনুযায়ী দিন।"
+                continue
+            if not _validate_token_part(fname, val):
+                return [], f"❌ সারি {row_idx + 1}-এ <b>{fname}</b> অংশটি সঠিক নয়! ফরম্যাট: <code>{required_format}</code>"
+
+        identifier = parts[0].strip()
+        raw_line = " | ".join(parts)
+        parsed.append((identifier, raw_line))
+
+    return parsed, "" 
 
 
 # ==============================================================================
@@ -906,21 +1037,44 @@ async def handle_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, t
     recv_kb = InlineKeyboardMarkup([
         [InlineKeyboardButton(f"📥 Receive ({pending_cnt}টি)", callback_data=f"adm:recv:{u.id}:{sub_id_for_btn}")]
     ])
-    for adm_id in await get_all_admin_ids():
-        try:
-            await context.bot.send_message(
-                chat_id=adm_id,
-                text=(
-                    f"📥 <b>নতুন সাবমিশন!</b> (#{sub_id})\n"
-                    f"👤 ইউজার: {u.full_name} (<code>{u.id}</code>)\n"
-                    f"📂 কাজ: {task['sub_name']} (৳{task['rate']:.0f})\n"
-                    f"📦 মোট Pending: <b>{pending_cnt}টি</b>"
-                ),
-                parse_mode=ParseMode.HTML,
-                reply_markup=recv_kb,
-            )
-        except Exception:
-            pass
+    notif_text = (
+        f"📥 <b>নতুন সাবমিশন!</b>\n"
+        f"👤 ইউজার: {u.full_name} (<code>{u.id}</code>)\n"
+        f"📂 কাজ: {task['sub_name']} (৳{task['rate']:.0f})\n"
+        f"📦 মোট Pending: <b>{pending_cnt}টি</b>"
+    )
+    existing_notifs = await db.fetchall(
+        "SELECT * FROM work_admin_notifs WHERE user_id = ? AND sub_id = ?",
+        (uid, sub_id_for_btn),
+    )
+    if existing_notifs:
+        # Update existing single message count without sending a new message!
+        for n in existing_notifs:
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=n["admin_id"],
+                    message_id=n["message_id"],
+                    text=notif_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=recv_kb,
+                )
+            except Exception:
+                pass
+    else:
+        for adm_id in await get_all_admin_ids():
+            try:
+                sent_m = await context.bot.send_message(
+                    chat_id=adm_id,
+                    text=notif_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=recv_kb,
+                )
+                await db.execute(
+                    "INSERT INTO work_admin_notifs (user_id, sub_id, admin_id, message_id) VALUES (?, ?, ?, ?)",
+                    (uid, sub_id_for_btn, adm_id, sent_m.message_id),
+                )
+            except Exception:
+                pass
     return True
 
 
@@ -1004,7 +1158,10 @@ async def handle_file_submit_menu(update: Update) -> None:
         return
     rows = [[KeyboardButton(f"📁 {c['name']} Submit ▸")] for c in cats]
     rows.append([KeyboardButton("❌ Cancel")])
-    await update.message.reply_text("📁 Select a file category:", reply_markup=ReplyKeyboardMarkup(rows, resize_keyboard=True))
+    await update.message.reply_text(
+        "📁 আপনি কোন ক্যাটাগরির একাউন্ট সাবমিট করতে চান তা নির্বাচন করুন:",
+        reply_markup=ReplyKeyboardMarkup(rows, resize_keyboard=True),
+    )
 
 
 async def handle_guide_menu(update: Update) -> None:
@@ -1102,7 +1259,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await db.execute("UPDATE users SET pending_withdraw = MAX(0, pending_withdraw - ?) WHERE user_id = ?", (wd["requested_amount"], wd["user_id"]))
             invalidate_user_cache(wd["user_id"])
             await query.edit_message_text(
-                f"✅ <b>Paid!</b> (#WD-{wd_id})\n👤 UID: <code>{wd['user_id']}</code> | {wd['method']}: <code>{wd['account_number']}</code>\n💵 পাঠানো হয়েছে: ৳{wd['net_amount']:.2f}",
+                f"✅ <b>Paid!</b> \n👤 UID: <code>{wd['user_id']}</code> | {wd['method']}: <code>{wd['account_number']}</code>\n💵 পাঠানো হয়েছে: ৳{wd['net_amount']:.2f}",
                 parse_mode=ParseMode.HTML,
             )
             try:
@@ -1119,7 +1276,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 (wd["requested_amount"], wd["requested_amount"], wd["user_id"]),
             )
             invalidate_user_cache(wd["user_id"])
-            await query.edit_message_text(f"❌ <b>Rejected & Refunded</b> (#WD-{wd_id})", parse_mode=ParseMode.HTML)
+            await query.edit_message_text(f"❌ <b>Rejected & Refunded</b> ", parse_mode=ParseMode.HTML)
             try:
                 await context.bot.send_message(
                     chat_id=wd["user_id"],
@@ -1316,6 +1473,14 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
             "UPDATE submissions SET status = 'received', batch_id = ? WHERE user_id = ? AND subcategory_id = ? AND status = 'pending'",
             (batch_id, target_uid, sub_id),
         )
+        notifs = await db.fetchall("SELECT * FROM work_admin_notifs WHERE user_id = ? AND sub_id = ?", (target_uid, sub_id))
+        for n in notifs:
+            if n["message_id"] != query.message.message_id:
+                try:
+                    await context.bot.delete_message(chat_id=n["admin_id"], message_id=n["message_id"])
+                except Exception:
+                    pass
+        await db.execute("DELETE FROM work_admin_notifs WHERE user_id = ? AND sub_id = ?", (target_uid, sub_id))
 
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -1345,7 +1510,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await query.message.reply_document(
             document=bio,
             filename=f"batch_{batch_id}_user_{target_uid}.xlsx",
-            caption=f"📊 <b>Batch #{batch_id} Received!</b> ({len(subs)}টি)\nসঠিক সারিতে <b>সবুজ</b> ও ভুলে <b>লাল</b> কালার দিয়ে <b>Upload Report (.xlsx)</b> করুন।",
+            caption=f"📊 <b>Received!</b> ({len(subs)}টি)\nসঠিক সারিতে <b>সবুজ</b> ও ভুলে <b>লাল</b> কালার দিয়ে <b>Upload Report (.xlsx)</b> করুন।",
             parse_mode=ParseMode.HTML,
         )
         try:
@@ -1359,7 +1524,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         try:
             await query.message.delete()
         except Exception:
-            await query.edit_message_text(f"✅ Batch #{batch_id} রিসিভ সম্পন্ন হয়েছে।", reply_markup=back_to_admin_kb())
+            await query.edit_message_text(f"✅ রিসিভ সম্পন্ন হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if action == "upload_report":
@@ -1581,22 +1746,113 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
 
     if action == "fsub_mgr":
         cats = await db.fetchall("SELECT * FROM file_submit_categories ORDER BY id ASC")
-        kb = [[InlineKeyboardButton(f"{'🟢' if c['is_active'] else '🔴'} {c['name']}", callback_data=f"adm:fsub_tog:{c['id']}")] for c in cats]
+        kb = [[InlineKeyboardButton(f"{'🟢' if c['is_active'] else '🔴'} {c['name']} (৳{c['rate']:.0f})", callback_data=f"adm:fsub_cat:{c['id']}")] for c in cats]
         kb.append([InlineKeyboardButton("➕ Add File Submit Category", callback_data="adm:fsub_add")])
         kb.append([InlineKeyboardButton("⬅️ Back to Admin Panel", callback_data="adm:home")])
         await query.edit_message_text("📁 <b>File Submit Categories</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    if action == "fsub_cat":
+        cid = int(parts[2])
+        c = await db.fetchone("SELECT * FROM file_submit_categories WHERE id = ?", (cid,))
+        kb = [
+            [
+                InlineKeyboardButton(f"{'🟢 ON' if c['is_active'] else '🔴 OFF'} Toggle", callback_data=f"adm:fsub_tog:{cid}"),
+                InlineKeyboardButton("🗑 Delete", callback_data=f"adm:fsub_del:{cid}"),
+            ],
+            [
+                InlineKeyboardButton(f"🕒 Time: {c['cutoff_time']}", callback_data=f"adm:fsub_edit:{cid}:cutoff_time"),
+                InlineKeyboardButton(f"৳ Rate: {c['rate']:.0f}", callback_data=f"adm:fsub_edit:{cid}:rate"),
+            ],
+            [
+                InlineKeyboardButton(f"💲 USDT: {c['usdt_rate']:.4f}", callback_data=f"adm:fsub_edit:{cid}:usdt_rate"),
+                InlineKeyboardButton(f"📋 Report Col: {c['report_col']}", callback_data=f"adm:fsub_edit:{cid}:report_col"),
+            ],
+            [InlineKeyboardButton(f"🖍 Format: {c['required_format']}", callback_data=f"adm:fsub_edit:{cid}:required_format")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="adm:fsub_mgr")],
+        ]
+        await query.edit_message_text(
+            f"📁 <b>{c['name']}</b>\n"
+            f"• Time: {c['cutoff_time']}\n"
+            f"• Rate: {c['rate']:.0f} ৳ ({c['usdt_rate']:.4f} USDT)\n"
+            f"• Format: <code>{c['required_format']}</code>\n"
+            f"• Report Column: <b>{c['report_col']}</b>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(kb),
+        )
         return
 
     if action == "fsub_tog":
         cid = int(parts[2])
         c = await db.fetchone("SELECT is_active FROM file_submit_categories WHERE id = ?", (cid,))
         await db.execute("UPDATE file_submit_categories SET is_active = ? WHERE id = ?", (0 if c["is_active"] else 1, cid))
+        await handle_admin_callback(query, context, f"adm:fsub_cat:{cid}")
+        return
+
+    if action == "fsub_del":
+        cid = int(parts[2])
+        await db.execute("DELETE FROM file_submit_categories WHERE id = ?", (cid,))
         await handle_admin_callback(query, context, "adm:fsub_mgr")
+        return
+
+    if action == "fsub_edit":
+        cid, field = parts[2], parts[3]
+        context.user_data["state"] = f"adm_fsub_edit:{cid}:{field}"
+        hints = {
+            "cutoff_time": "নতুন শেষ সময় লিখুন (যেমন: <code>10:00 PM</code>):",
+            "rate": "নতুন রেট (টাকায়) লিখুন (যেমন: <code>5</code>):",
+            "usdt_rate": "নতুন ডলার/USDT রেট লিখুন (যেমন: <code>0.0394</code>):",
+            "required_format": "নতুন ফরম্যাট লিখুন (যেমন: <code>Uid pas cookies</code> বা <code>Uid pas 2fa hotmail</code>):",
+            "report_col": "রিপোর্ট কলামের নাম লিখুন (<code>UID</code> অথবা <code>Username</code>):",
+        }
+        await query.edit_message_text(hints.get(field, "নতুন মান লিখুন:"), parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
         return
 
     if action == "fsub_add":
         context.user_data["state"] = "adm_fsub_add"
-        await query.edit_message_text("নতুন File Submit ক্যাটাগরির নাম লিখুন:", reply_markup=back_to_admin_kb())
+        await query.edit_message_text("নতুন File Submit ক্যাটাগরির নাম লিখুন (যেমন: <code>Fb cookies</code>):", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+        return
+
+    if action == "fsub_recv":
+        fsub_id = int(parts[2])
+        fs = await db.fetchone("SELECT * FROM file_submissions WHERE id = ?", (fsub_id,))
+        if not fs:
+            await query.answer("পাওয়া যায়নি", show_alert=True)
+            return
+        await db.execute("UPDATE file_submissions SET status = 'received' WHERE id = ?", (fsub_id,))
+        await db.execute("UPDATE file_submit_rows SET status = 'received' WHERE fsub_id = ? AND status = 'pending'", (fsub_id,))
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        try:
+            await context.bot.send_message(
+                chat_id=fs["user_id"],
+                text=f"📥 আপনার <b>{fs['category_name']}</b> ফাইলটি ({fs['total_rows']}টি অ্যাকাউন্ট) অ্যাডমিন রিসিভ করেছেন!",
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception:
+            pass
+        return
+
+    if action == "fsub_report_pick":
+        cats = await db.fetchall("SELECT * FROM file_submit_categories ORDER BY id ASC")
+        if not cats:
+            await query.edit_message_text("❌ কোনো File Submit ক্যাটাগরি নেই।", reply_markup=back_to_admin_kb())
+            return
+        kb = [[InlineKeyboardButton(f"📊 {c['name']}", callback_data=f"adm:fsub_rep_cat:{c['id']}")] for c in cats]
+        kb.append([InlineKeyboardButton("⬅️ Back to Admin Panel", callback_data="adm:home")])
+        await query.edit_message_text("📊 কোন ক্যাটাগরির <b>.xlsx</b> রিপোর্ট আপলোড করবেন?", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    if action == "fsub_rep_cat":
+        cid = int(parts[2])
+        context.user_data["state"] = f"adm_fsub_report:{cid}"
+        await query.edit_message_text(
+            "📤 <code>UID</code> বা <code>Username</code> কলামে <b>সবুজ (Ok)</b> ও <b>লাল (Back)</b> কালার করা <b>.xlsx</b> রিপোর্ট ফাইলটি এখন পাঠান:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=back_to_admin_kb(),
+        )
         return
 
     if action == "user_dir":
@@ -1627,7 +1883,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
             await query.edit_message_text("📜 কোনো ফাইল হিস্ট্রি নেই।", reply_markup=back_to_admin_kb())
             return
         lines = ["📜 <b>Recent File History</b>\n"] + [
-            f"• <b>#{b['id']}</b> | UID: <code>{b['user_id']}</code> | {b['subcategory_name']} | ✅{b['approved_count']} ❌{b['rejected_count']}"
+            f"• UID: <code>{b['user_id']}</code> | {b['subcategory_name']} | ✅{b['approved_count']} ❌{b['rejected_count']}"
             for b in batches
         ]
         await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
@@ -1784,9 +2040,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Check File Submit Reply Keyboard buttons
     if text.startswith("📁 ") and text.endswith(" Submit ▸"):
         cat_name = text[2:-9].strip()
-        context.user_data["state"] = f"user_fsub:{cat_name}"
+        cat = await db.fetchone("SELECT * FROM file_submit_categories WHERE name = ? AND is_active = 1", (cat_name,))
+        if not cat:
+            await update.message.reply_text("❌ এই ক্যাটাগরিটি বর্তমানে বন্ধ আছে।", reply_markup=await main_keyboard(uid))
+            return
+        context.user_data["state"] = f"user_fsub:{cat['id']}"
         await update.message.reply_text(
-            f"📤 অনুগ্রহ করে <b>{cat_name}</b>-এর জন্য আপনার ফাইলটি এখানে পাঠান:",
+            f"📸 <b>Category:</b> {cat['name']}\n"
+            f"🕒 <b>আজকের শেষ সময়:</b> {cat['cutoff_time']}\n"
+            f"💲 <b>Per Account Rate:</b> {cat['rate']:.0f} ৳ ({cat['usdt_rate']:.4f} USDT)\n\n"
+            f"🖍 <b>Required Format:</b>\n<code>{cat['required_format']}</code>\n\n"
+            f"<i>অনুগ্রহ করে উপরের ফরম্যাট অনুযায়ী আপনার .xlsx ফাইলটি এখানে সাবমিট করুন।</i>",
             parse_mode=ParseMode.HTML,
             reply_markup=ReplyKeyboardMarkup([[KeyboardButton("❌ Cancel")]], resize_keyboard=True),
         )
@@ -1874,7 +2138,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         )
         log_activity_bg(uid, "WITHDRAW", f"#WD-{wd_id} ৳{amount} via {wd_data['method']}")
         await msg.reply_text(
-            f"✅ <b>উইথড্র রিকোয়েস্ট সম্পন্ন!</b> (#WD-{wd_id})\n"
+            f"✅ <b>উইথড্র রিকোয়েস্ট সম্পন্ন!</b> \n"
             f"• মেথড: {wd_data['method']}\n• অ্যাকাউন্ট: <code>{wd_data['account']}</code>\n"
             f"• রিকোয়েস্ট: ৳{amount:.2f} | ফি: ৳{fee:.2f}\n• <b>আপনি পাবেন: ৳{net:.2f}</b>",
             parse_mode=ParseMode.HTML,
@@ -1888,7 +2152,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
                 await context.bot.send_message(
                     chat_id=adm_id,
                     text=(
-                        f"💸 <b>নতুন উইথড্র রিকোয়েস্ট!</b> (#WD-{wd_id})\n"
+                        f"💸 <b>নতুন উইথড্র রিকোয়েস্ট!</b> \n"
                         f"👤 {update.effective_user.full_name} (<code>{uid}</code>)\n"
                         f"💳 {wd_data['method']}: <code>{wd_data['account']}</code>\n"
                         f"📊 ৳{amount:.2f} - ৳{fee:.2f} = <b>৳{net:.2f}</b>"
@@ -1905,25 +2169,67 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
             context.user_data.pop("state", None)
             await msg.reply_text("Back to main menu.", reply_markup=await main_keyboard(uid))
             return
-        cat_name = state.split(":", 1)[1]
-        if not msg.document:
-            await msg.reply_text("❌ অনুগ্রহ করে একটি ডকুমেন্ট/ফাইল পাঠান অথবা ❌ Cancel চাপুন।")
+        cat_id = int(state.split(":", 1)[1])
+        cat = await db.fetchone("SELECT * FROM file_submit_categories WHERE id = ?", (cat_id,))
+        if not cat:
+            context.user_data.pop("state", None)
+            await msg.reply_text("❌ ক্যাটাগরি পাওয়া যায়নি।", reply_markup=await main_keyboard(uid))
             return
+        fname = (msg.document.file_name or "").lower() if msg.document else ""
+        if not msg.document or not fname.endswith(".xlsx"):
+            await msg.reply_text("❌ অনুগ্রহ করে সঠিক ফরম্যাটের একটি <b>.xlsx</b> এক্সেল ফাইল পাঠান অথবা ❌ Cancel চাপুন।", parse_mode=ParseMode.HTML)
+            return
+
+        scan_msg = await msg.reply_text(f"🔄 Scanning your file for Category: <code>{cat['name']}</code>...", parse_mode=ParseMode.HTML)
+        tg_file = await msg.document.get_file()
+        bio = io.BytesIO()
+        await tg_file.download_to_memory(out=bio)
+        bio.seek(0)
+
+        parsed_rows, err_reason = parse_and_validate_fsub_excel(bio, cat["required_format"])
+        if err_reason:
+            await scan_msg.edit_text(err_reason, parse_mode=ParseMode.HTML)
+            return
+
         now_str = datetime.datetime.now(BD_TZ).strftime("%Y-%m-%d %H:%M:%S")
-        await db.execute(
-            "INSERT INTO file_submissions (user_id, category_name, file_id, file_name, created_at) VALUES (?, ?, ?, ?, ?)",
-            (uid, cat_name, msg.document.file_id, msg.document.file_name or "file", now_str),
+        fsub_id = await db.execute_insert_returning_id(
+            "INSERT INTO file_submissions (user_id, category_id, category_name, rate, total_rows, file_id, file_name, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
+            (uid, cat["id"], cat["name"], float(cat["rate"]), len(parsed_rows), msg.document.file_id, msg.document.file_name or "file.xlsx", now_str),
         )
-        log_activity_bg(uid, "FILE_SUBMIT", f"{cat_name}: {msg.document.file_name}")
+        for ident, raw_line in parsed_rows:
+            await db.execute(
+                "INSERT INTO file_submit_rows (fsub_id, user_id, category_id, category_name, rate, identifier, raw_line, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
+                (fsub_id, uid, cat["id"], cat["name"], float(cat["rate"]), ident, raw_line, now_str),
+            )
+
+        log_activity_bg(uid, "FILE_SUBMIT", f"{cat['name']}: {len(parsed_rows)} rows")
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ আপনার ফাইলটি অ্যাডমিনের কাছে জমা দেওয়া হয়েছে!", reply_markup=await main_keyboard(uid))
+
+        await scan_msg.edit_text(
+            f"✅ <b>File Submission Report</b> ✅\n\n"
+            f"📁 <b>Category:</b> {cat['name']}\n"
+            f"--------------------------------\n"
+            f"📊 <b>Total Accounts Found:</b> {len(parsed_rows)}\n"
+            f"--------------------------------\n\n"
+            f"💰 রিপোর্ট আসলে শীঘ্রই ব্যালেন্স অটোমেটিক আপনার একাউন্টে যোগ হয়ে যাবে",
+            parse_mode=ParseMode.HTML,
+        )
+        await msg.reply_text("📋 ফাইলটি অ্যাডমিন রিভিউয়ের জন্য পাঠানো হয়েছে।", reply_markup=await main_keyboard(uid))
+
+        recv_kb = InlineKeyboardMarkup([[InlineKeyboardButton("📥 Receive File", callback_data=f"adm:fsub_recv:{fsub_id}")]])
         for adm_id in await get_all_admin_ids():
             try:
                 await context.bot.send_document(
                     chat_id=adm_id,
                     document=msg.document.file_id,
-                    caption=f"📁 <b>File Submit</b> ({cat_name})\n👤 UID: <code>{uid}</code>",
+                    caption=(
+                        f"📁 <b>New File Submit</b>\n"
+                        f"👤 ইউজার: {update.effective_user.full_name} (<code>{uid}</code>)\n"
+                        f"📂 ক্যাটাগরি: <b>{cat['name']}</b>\n"
+                        f"📊 মোট অ্যাকাউন্ট: <b>{len(parsed_rows)}টি</b>"
+                    ),
                     parse_mode=ParseMode.HTML,
+                    reply_markup=recv_kb,
                 )
             except Exception:
                 pass
@@ -2150,9 +2456,34 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         return
 
     if state == "adm_fsub_add":
-        await db.execute("INSERT INTO file_submit_categories (name, is_active) VALUES (?, 1)", (text,))
+        await db.execute(
+            "INSERT INTO file_submit_categories (name, cutoff_time, rate, usdt_rate, required_format, report_col, is_active) VALUES (?, '10:00 PM', 5.0, 0.0394, 'Uid pas cookies', 'UID', 1)",
+            (text,),
+        )
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ File Submit ক্যাটাগরি যুক্ত হয়েছে।", reply_markup=back_to_admin_kb())
+        await msg.reply_text(f"✅ File Submit ক্যাটাগরি <b>{text}</b> যুক্ত হয়েছে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+        return
+
+    if state.startswith("adm_fsub_edit:"):
+        _, cid_str, field = state.split(":", 2)
+        cid = int(cid_str)
+        val: Any = float(text) if field in ("rate", "usdt_rate") else text
+        await db.execute(f"UPDATE file_submit_categories SET {field} = ? WHERE id = ?", (val, cid))
+        context.user_data.pop("state", None)
+        await msg.reply_text("✅ আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
+        return
+
+    if state.startswith("adm_fsub_report:"):
+        cid = int(state.split(":", 1)[1])
+        if not msg.document or not (msg.document.file_name or "").lower().endswith(".xlsx"):
+            await msg.reply_text("❌ ভ্যালিড `.xlsx` ফাইল পাঠান।")
+            return
+        tg_file = await msg.document.get_file()
+        bio = io.BytesIO()
+        await tg_file.download_to_memory(out=bio)
+        bio.seek(0)
+        await process_admin_fsub_report_excel(msg, context, bio, cid)
+        context.user_data.pop("state", None)
         return
 
     if state == "adm_del_user":
@@ -2312,6 +2643,124 @@ async def process_admin_report_excel(msg, context: ContextTypes.DEFAULT_TYPE, bi
 
     await msg.reply_text(
         f"✅ <b>রিপোর্ট প্রসেস সম্পন্ন!</b>\n• মোট অ্যাপ্রুভ (সবুজ): {total_app}টি\n• মোট রিজেক্ট (লাল): {total_rej}টি",
+        parse_mode=ParseMode.HTML,
+        reply_markup=back_to_admin_kb(),
+    )
+
+
+async def process_admin_fsub_report_excel(msg, context: ContextTypes.DEFAULT_TYPE, bio: io.BytesIO, cat_id: int) -> None:
+    cat = await db.fetchone("SELECT * FROM file_submit_categories WHERE id = ?", (cat_id,))
+    if not cat:
+        await msg.reply_text("❌ ক্যাটাগরি পাওয়া যায়নি।", reply_markup=back_to_admin_kb())
+        return
+
+    wb = openpyxl.load_workbook(bio)
+    ws = wb.active
+    col_header = cat["report_col"] or "UID"
+    first_val = str(ws.cell(row=1, column=1).value or "").strip().lower()
+    start_row = 2 if first_val in ("uid", "username", "id", "sl") else 1
+
+    user_results: Dict[int, Dict[str, Any]] = {}
+    ref_bonus = float(await get_setting("referral_bonus", "3"))
+    today_str = datetime.datetime.now(BD_TZ).strftime("%Y-%m-%d")
+
+    for r_idx in range(start_row, ws.max_row + 1):
+        cell = ws.cell(row=r_idx, column=1)
+        ident = str(cell.value or "").strip()
+        if not ident:
+            continue
+        color = classify_excel_color(cell)
+        if not color:
+            continue
+
+        row_rec = await db.fetchone(
+            "SELECT * FROM file_submit_rows WHERE category_id = ? AND identifier = ? AND status IN ('pending', 'received') ORDER BY id DESC LIMIT 1",
+            (cat_id, ident),
+        )
+        if not row_rec:
+            continue
+
+        tuid = row_rec["user_id"]
+        if tuid not in user_results:
+            user_results[tuid] = {"ok": 0, "back": 0, "earned": 0.0, "items": []}
+
+        if color == "green":
+            rate = float(row_rec["rate"])
+            await db.execute("UPDATE file_submit_rows SET status = 'approved' WHERE id = ?", (row_rec["id"],))
+            await db.execute(
+                "UPDATE users SET balance = balance + ?, total_income = total_income + ?, completed_jobs = completed_jobs + 1 WHERE user_id = ?",
+                (rate, rate, tuid),
+            )
+            invalidate_user_cache(tuid)
+            user_results[tuid]["ok"] += 1
+            user_results[tuid]["earned"] += rate
+            user_results[tuid]["items"].append((ident, "green"))
+
+            usr = await db.fetchone("SELECT referred_by, referral_paid FROM users WHERE user_id = ?", (tuid,))
+            if usr and usr.get("referred_by") and not usr.get("referral_paid"):
+                ref_id = usr["referred_by"]
+                await db.execute("UPDATE users SET referral_paid = 1 WHERE user_id = ?", (tuid,))
+                await db.execute(
+                    "UPDATE users SET balance = balance + ?, total_income = total_income + ?, referral_earnings = referral_earnings + ? WHERE user_id = ?",
+                    (ref_bonus, ref_bonus, ref_bonus, ref_id),
+                )
+                invalidate_user_cache(ref_id)
+                try:
+                    await context.bot.send_message(
+                        chat_id=ref_id,
+                        text=f"🎉 অভিনন্দন! আপনার রেফার করা ইউজারের প্রথম কাজ অ্যাপ্রুভ হওয়ায় আপনার ব্যালেন্সে <b>৳{ref_bonus:.0f}</b> বোনাস যোগ হয়েছে!",
+                        parse_mode=ParseMode.HTML,
+                    )
+                except Exception:
+                    pass
+        elif color == "red":
+            await db.execute("UPDATE file_submit_rows SET status = 'rejected' WHERE id = ?", (row_rec["id"],))
+            await db.execute("UPDATE users SET rejected_jobs = rejected_jobs + 1 WHERE user_id = ?", (tuid,))
+            invalidate_user_cache(tuid)
+            user_results[tuid]["back"] += 1
+            user_results[tuid]["items"].append((ident, "red"))
+
+    green_fill = PatternFill(start_color="00B050", end_color="00B050", fill_type="solid")
+    red_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+
+    total_ok, total_back = 0, 0
+    for tuid, res in user_results.items():
+        total_ok += res["ok"]
+        total_back += res["back"]
+        u_wb = openpyxl.Workbook()
+        u_ws = u_wb.active
+        u_ws.title = f"Report {today_str}"
+        u_ws.append([col_header])
+        for idx, (ident, clr) in enumerate(res["items"], start=2):
+            c = u_ws.cell(row=idx, column=1, value=ident)
+            c.fill = green_fill if clr == "green" else red_fill
+        u_ws.column_dimensions["A"].width = 25
+        u_bio = io.BytesIO()
+        u_wb.save(u_bio)
+        u_bio.seek(0)
+
+        try:
+            await context.bot.send_message(
+                chat_id=tuid,
+                text=(
+                    f"🗓 <b>আপনার {cat['name']} ক্যাটাগরির ({today_str}) রিপোর্ট এসেছে!</b>\n\n"
+                    f"✅ <b>Ok ID:</b> {res['ok']} টি\n"
+                    f"❌ <b>Back ID:</b> {res['back']} টি\n"
+                    f"💲 <b>Balance অ্যাড হয়েছে:</b> {res['earned']:.0f} ৳"
+                ),
+                parse_mode=ParseMode.HTML,
+            )
+            await context.bot.send_document(
+                chat_id=tuid,
+                document=u_bio,
+                filename=f"Report_{cat['name']}_{today_str}.xlsx",
+                caption="📁 আপনার বিস্তারিত কালারফুল রিপোর্ট ফাইলটি চেক করুন।",
+            )
+        except Exception:
+            pass
+
+    await msg.reply_text(
+        f"✅ <b>File Submit রিপোর্ট প্রসেস সম্পন্ন!</b>\n• মোট Ok ID (সবুজ): {total_ok} টি\n• মোট Back ID (লাল): {total_back} টি",
         parse_mode=ParseMode.HTML,
         reply_markup=back_to_admin_kb(),
     )
