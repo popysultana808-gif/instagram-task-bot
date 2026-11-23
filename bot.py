@@ -79,6 +79,7 @@ def ikb_btn(
     except TypeError:
         return InlineKeyboardButton(text, **kwargs)
 
+
 FIRST_NAMES = [
     "Scott", "James", "Robert", "John", "Michael", "David", "William", "Richard",
     "Joseph", "Thomas", "Charles", "Christopher", "Daniel", "Matthew", "Anthony",
@@ -96,6 +97,7 @@ LAST_NAMES = [
     "Lewis", "Robinson", "Walker", "Young", "Allen", "King", "Wright", "Scott",
     "Torres", "Nguyen", "Hill", "Flores", "Green", "Adams", "Nelson", "Baker",
 ]
+
 
 # ==============================================================================
 # ASYNC DATABASE LAYER (asyncpg for Supabase/Postgres + SQLite fallback)
@@ -365,7 +367,7 @@ class AsyncDatabase:
             }, ensure_ascii=False),
             "msg_welcome": "⭐ Welcome to {bot_name}!\n\n⭐ এই Bot-এর মাধ্যমে আপনি খুব সহজেই আপনার Facebook / Instagram / অন্যান্য File Submit করতে পারবেন।\n\n⭐ File Submit করার আগে অবশ্যই সকল Rules অনুসরণ করুন।\n\n⭐ নিচের Menu থেকে আপনার প্রয়োজনীয় Option নির্বাচন করে File Submit করুন।",
             "msg_support": "💬 <b>Customer Support</b>\n\nDear member,\nContact our support team for any problem or question. We will try to solve it quickly.",
-            "msg_ref_rules": "⚠️ <b>Referral Rules</b>\n\n• আপনার রেফারেল লিংক দিয়ে কেউ জয়েন করে কাজ করলে প্রতি কাজের জন্য আপনি <b>৳{bonus}</b> করে বোনাস পাবেন!\n• Fake/spam accounts may have commission cancelled.\n• You cannot refer yourself.",
+            "msg_ref_rules": "⚠️ <b>Referral Rules</b>\n\n• আপনার রেফারেল লিংক দিয়ে কেউ জয়েন করে কাজ করলে প্রতি কাজের জন্য আপনি <b>৳{bonus}</b> করে বোনাস পাবেন!\n• Fake/spam accounts may have commission cancelled.\n• You cannot refer yourself.",
             "force_join_active": "0",
             "force_join_channel": "",
             "force_join_link": "",
@@ -407,9 +409,9 @@ class AsyncDatabase:
         existing_guide = await self.fetchone("SELECT id FROM guide_categories LIMIT 1")
         if not existing_guide:
             for gname, gtext in [
-                ("Instagram", "📸 Instagram কাজের নিয়ম:\n১. 💼 Work -> 📸 Instagram Work ▸ -> USA Instagram • ৳5 এ ক্লিক করুন।\n২. বটের দেওয়া নাম, ইউজারনেম ও পাসওয়ার্ড কপি করে একাউন্ট খুলুন।\n৩. Hotmail Set এ ক্লিক করে ফুল টোকেন সাবমিট করুন।"),
-                ("Gmail", "📧 Gmail কাজের গাইডলাইন এখনো অ্যাড করা হয়নি।"),
-                ("Facebook", "📘 Facebook কাজের গাইডলাইন এখনো অ্যাড করা হয়নি।"),
+                ("Instagram", "📸 Instagram কাজের নিয়ম:\n১. 💼 Work -> 📸 Instagram Work ▸ -> USA Instagram • ৳5 এ ক্লিক করুন।\n২. বটের দেওয়া নাম, ইউজারনেম ও পাসওয়ার্ড কপি করে একাউন্ট খুলুন।\n৩. Hotmail Set এ ক্লিক করে ফুল টোকেন সাবমিট করুন।"),
+                ("Gmail", "📧 Gmail কাজের গাইডলাইন এখনো অ্যাড করা হয়নি।"),
+                ("Facebook", "📘 Facebook কাজের গাইডলাইন এখনো অ্যাড করা হয়নি।"),
             ]:
                 await self.execute(
                     "INSERT INTO guide_categories (name, guide_text, video_file_id, is_active) VALUES (?, ?, ?, ?)",
@@ -541,7 +543,6 @@ async def get_current_password() -> str:
 
 
 async def acquire_username_profile(user_id: int) -> Tuple[str, str]:
-    # First check recycled pool for a username NOT previously cancelled by this same user
     rec = await db.fetchone(
         "SELECT * FROM recycled_usernames WHERE last_user_id != ? ORDER BY id ASC LIMIT 1",
         (user_id,),
@@ -582,19 +583,19 @@ def validate_step_input(validator_type: str, text: str) -> Tuple[bool, str, str]
     if validator_type == "hotmail_token":
         parts = val.split("|")
         if len(parts) < 4:
-            return False, "❌ ভুল ফরম্যাট! হটমেইল ফুল টোকেনে অবশ্যই `email|password|refresh_token|client_id` থাকতে হবে।", ""
+            return False, "❌ ভুল ফরম্যাট! হটমেইল ফুল টোকেনটি অবশ্যই `email|password|refresh_token|client_id` থাকতে হবে।", ""
         email = parts[0].strip().lower()
         pwd = parts[1].strip()
         refresh_token = parts[2].strip()
         client_id = parts[3].strip()
         if not any(email.endswith(d) for d in HOTMAIL_DOMAINS) or "@" not in email:
-            return False, "❌ ভ্যালিড Hotmail/Outlook ইমেইল পাওয়া যায়নি!", ""
+            return False, "❌ ভ্যালিড Hotmail/Outlook ইমেইল পাওয়া যায়নি!", ""
         if len(pwd) < 3:
-            return False, "❌ পাসওয়ার্ড অংশটি সঠিক নয়!", ""
+            return False, "❌ পাসওয়ার্ড অংশটি সঠিক নয়!", ""
         if not refresh_token.startswith("M.") or len(refresh_token) < 40:
-            return False, "❌ Refresh Token সঠিক নয়! অনুগ্রহ করে সম্পূর্ণ ফুল টোকেন দিন।", ""
+            return False, "❌ Refresh Token সঠিক নয়! অনুগ্রহ করে সম্পূর্ণ ফুল টোকেন দিন।", ""
         if not UUID_RE.match(client_id):
-            return False, "❌ Client ID (UUID) সঠিক নয়! সম্পূর্ণ ফুল টোকেনটি কপি করে দিন।", ""
+            return False, "❌ Client ID (UUID) সঠিক নয়! সম্পূর্ণ ফুল টোকেনটি কপি করে দিন।", ""
         return True, "", email
     elif validator_type == "2fa":
         if len(val.replace(" ", "")) < 8:
@@ -649,11 +650,11 @@ async def check_force_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return True
 
     btns = [[ikb_btn(f"📢 {c.get('label', 'Join Channel')}", url=c["link"], style="primary")] for c in unjoined]
-    btns.append([Inlinekb_btn("✅ Joined / Check Again", callback_data="fjoin:check", style="primary")])
+    btns.append([ikb_btn("✅ Joined / Check Again", callback_data="fjoin:check", style="primary")])
     kb = InlineKeyboardMarkup(btns)
     if update.effective_message:
         await update.effective_message.reply_text(
-            "📢 বটটি ব্যবহার করতে প্রথমে আমাদের অফিসিয়াল চ্যানেলে জয়েন করুন, তারপর নিচের <b>Joined</b> বাটনে চাপ দিন:",
+            "📢 বটটি ব্যবহার করতে প্রথমে আমাদের অফিসিয়াল চ্যানেলে জয়েন করুন, তারপর নিচের <b>Joined</b> বাটনে চাপ দিন:",
             parse_mode=ParseMode.HTML,
             reply_markup=kb,
         )
@@ -716,54 +717,54 @@ async def admin_panel_keyboard() -> InlineKeyboardMarkup:
     fj_label = "📢 Force Join: ON" if fj_active else "📢 Force Join: OFF"
     kb = [
         [
-            Inlinekb_btn(status_label, callback_data="adm:toggle_bot", style="primary"),
-            Inlinekb_btn(fj_label, callback_data="adm:fjoin_mgr", style="primary"),
+            ikb_btn(status_label, callback_data="adm:toggle_bot", style="primary"),
+            ikb_btn(fj_label, callback_data="adm:fjoin_mgr", style="primary"),
         ],
         [
-            Inlinekb_btn("📂 Pending Work", callback_data="adm:pending_files", style="success"),
+            ikb_btn("📂 Pending Work", callback_data="adm:pending_files", style="success"),
             ikb_btn("📤 Work Report (.xlsx)", callback_data="adm:upload_report", style="success"),
         ],
         [
             ikb_btn("📊 File Submit Report (.xlsx)", callback_data="adm:fsub_report_pick", style="primary"),
         ],
         [
-            Inlinekb_btn("👁 View User Inbox", callback_data="adm:view_inbox_ask", style="primary"),
-            Inlinekb_btn("📩 Send to User Inbox", callback_data="adm:inbox_upload", style="primary"),
+            ikb_btn("👁 View User Inbox", callback_data="adm:view_inbox_ask", style="primary"),
+            ikb_btn("📩 Send to User Inbox", callback_data="adm:inbox_upload", style="primary"),
         ],
         [
-            Inlinekb_btn("🛠 Work & Steps", callback_data="adm:work_mgr", style="success"),
-            Inlinekb_btn("💰 Balance & Withdraw", callback_data="adm:bal_mgr", style="success"),
+            ikb_btn("🛠 Work & Steps", callback_data="adm:work_mgr", style="success"),
+            ikb_btn("💰 Balance & Withdraw", callback_data="adm:bal_mgr", style="success"),
         ],
         [
-            Inlinekb_btn("🔑 Password Settings", callback_data="adm:pwd_mgr", style="primary"),
-            Inlinekb_btn("⌨️ Main Buttons", callback_data="adm:btn_mgr", style="primary"),
+            ikb_btn("🔑 Password Settings", callback_data="adm:pwd_mgr", style="primary"),
+            ikb_btn("⌨️ Main Buttons", callback_data="adm:btn_mgr", style="primary"),
         ],
         [
             ikb_btn("🎬 আমি নতুন (Guides)", callback_data="adm:guide_mgr", style="primary"),
-            Inlinekb_btn("📁 File Submit Cats", callback_data="adm:fsub_mgr", style="success"),
+            ikb_btn("📁 File Submit Cats", callback_data="adm:fsub_mgr", style="success"),
         ],
         [
-            Inlinekb_btn("👥 User Directory", callback_data="adm:user_dir:0", style="primary"),
-            Inlinekb_btn("📜 File History Report", callback_data="adm:file_history", style="primary"),
+            ikb_btn("👥 User Directory", callback_data="adm:user_dir:0", style="primary"),
+            ikb_btn("📜 File History Report", callback_data="adm:file_history", style="primary"),
         ],
         [
-            Inlinekb_btn("🗑 Delete User Data", callback_data="adm:del_user", style="danger"),
-            Inlinekb_btn("👮 Manage Admins", callback_data="adm:admins", style="primary"),
+            ikb_btn("🗑 Delete User Data", callback_data="adm:del_user", style="danger"),
+            ikb_btn("👮 Manage Admins", callback_data="adm:admins", style="primary"),
         ],
         [
-            Inlinekb_btn("📢 Broadcast", callback_data="adm:broadcast", style="primary"),
-            Inlinekb_btn("📝 Edit Bot Messages", callback_data="adm:edit_msgs", style="primary"),
+            ikb_btn("📢 Broadcast", callback_data="adm:broadcast", style="primary"),
+            ikb_btn("📝 Edit Bot Messages", callback_data="adm:edit_msgs", style="primary"),
         ],
         [
-            Inlinekb_btn("🆘 Edit Support Link", callback_data="adm:edit_support", style="primary"),
-            Inlinekb_btn("❌ Close Panel", callback_data="adm:close", style="primary"),
+            ikb_btn("🆘 Edit Support Link", callback_data="adm:edit_support", style="primary"),
+            ikb_btn("❌ Close Panel", callback_data="adm:close", style="primary"),
         ],
     ]
     return InlineKeyboardMarkup(kb)
 
 
 def back_to_admin_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")]])
+    return InlineKeyboardMarkup([[ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")]])
 
 
 def classify_excel_color(cell) -> Optional[str]:
@@ -819,7 +820,7 @@ def parse_and_validate_fsub_excel(bio: io.BytesIO, required_format: str) -> Tupl
     try:
         wb = openpyxl.load_workbook(bio, data_only=True)
     except Exception:
-        return [], "❌ ফাইলটি পড়া যায়নি! সঠিক <b>.xlsx</b> ফাইল দিন।"
+        return [], "❌ ফাইলটি পড়া যায়নি! সঠিক <b>.xlsx</b> ফাইল দিন।"
     ws = wb.active
     fields = [x.strip().lower() for x in re.split(r"[\s|,]+", required_format.strip()) if x.strip()]
     if not fields:
@@ -834,17 +835,15 @@ def parse_and_validate_fsub_excel(bio: io.BytesIO, required_format: str) -> Tupl
     if not raw_rows:
         return [], "❌ এক্সেল ফাইলটি খালি!"
 
-    # Skip header row if first cell looks like header word
     first_cell_low = raw_rows[0][0].lower()
     if first_cell_low in ("uid", "id", "username", "sl", "account", "email"):
         raw_rows = raw_rows[1:]
     if not raw_rows:
-        return [], "❌ ফাইলে কোনো অ্যাকাউন্টের সারি পাওয়া যায়নি!"
+        return [], "❌ ফাইলে কোনো অ্যাকাউন্টের সারি পাওয়া যায়নি!"
 
     parsed: List[Tuple[str, str]] = []
     for row_idx, vals in enumerate(raw_rows):
         non_empty = [v for v in vals if v != ""]
-        # Support single-cell pipe/space format OR multi-column format
         if len(non_empty) == 1 and ("|" in non_empty[0] or " " in non_empty[0]) and len(fields) > 1:
             sep = "|" if "|" in non_empty[0] else None
             parts = [x.strip() for x in (non_empty[0].split("|") if sep else non_empty[0].split(None, len(fields) - 1))]
@@ -853,21 +852,20 @@ def parse_and_validate_fsub_excel(bio: io.BytesIO, required_format: str) -> Tupl
             while len(parts) < len(fields):
                 parts.append("")
 
-        # Validate fields; password is required on first data row (row_idx == 0), optional afterwards
         for fi, fname in enumerate(fields):
             val = parts[fi] if fi < len(parts) else ""
             if fname in ("pas", "pass", "password"):
                 if row_idx == 0 and not _validate_token_part(fname, val):
-                    return [], f"❌ প্রথম সারিতে <b>Password</b> বাধ্যতামূলক! অনুগ্রহ করে ফরম্যাট <code>{required_format}</code> অনুযায়ী দিন।"
+                    return [], f"❌ প্রথম সারিতে <b>Password</b> বাধ্যতামূলক! অনুগ্রহ করে ফরম্যাট <code>{required_format}</code> অনুযায়ী দিন।"
                 continue
             if not _validate_token_part(fname, val):
-                return [], f"❌ সারি {row_idx + 1}-এ <b>{fname}</b> অংশটি সঠিক নয়! ফরম্যাট: <code>{required_format}</code>"
+                return [], f"❌ সারি {row_idx + 1}-এ <b>{fname}</b> অংশটি সঠিক নয়! ফরম্যাট: <code>{required_format}</code>"
 
         identifier = parts[0].strip()
         raw_line = " | ".join(parts)
         parsed.append((identifier, raw_line))
 
-    return parsed, "" 
+    return parsed, ""
 
 
 # ==============================================================================
@@ -998,7 +996,6 @@ async def handle_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         task["msg_ids"].append(wmsg.message_id)
         return True
 
-    # Validate user input
     ok, err_msg, fingerprint = validate_step_input(current_step.get("validator", "text"), text)
     if not ok:
         emsg = await update.message.reply_text(err_msg)
@@ -1015,7 +1012,6 @@ async def handle_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         await send_next_step_prompt(chat_id, context, task)
         return True
 
-    # All steps complete -> delete task messages, show verifying -> submitted
     for mid in task["msg_ids"]:
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=mid)
@@ -1075,7 +1071,6 @@ async def handle_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         (uid, sub_id_for_btn),
     )
     if existing_notifs:
-        # Update existing single message count without sending a new message!
         for n in existing_notifs:
             try:
                 await context.bot.edit_message_text(
@@ -1130,7 +1125,6 @@ async def handle_referral(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     uid = update.effective_user.id
     invalidate_user_cache(uid)
     u = await ensure_user(update)
-    bonus = float(await get_setting("referral_bonus", "3"))
     link = f"https://t.me/{context.bot.username}?start={uid}"
     text = (
         "🎁 <b>Refer & Earn</b>\n\n"
@@ -1139,10 +1133,10 @@ async def handle_referral(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         f"🔗 <b>Your referral link:</b>\n<code>{link}</code>"
     )
     kb = InlineKeyboardMarkup([
-        [Inlinekb_btn("📤 Forward This Message", switch_inline_query=f"Join & earn easily! {link}", style="primary")],
+        [ikb_btn("📤 Forward This Message", switch_inline_query=f"Join & earn easily! {link}", style="primary")],
         [
-            Inlinekb_btn("🏆 Team Leaderboard", callback_data="ref:leaderboard", style="primary"),
-            Inlinekb_btn("⚠️ Rules", callback_data="ref:rules", style="primary"),
+            ikb_btn("🏆 Team Leaderboard", callback_data="ref:leaderboard", style="primary"),
+            ikb_btn("⚠️ Rules", callback_data="ref:rules", style="primary"),
         ],
     ])
     await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
@@ -1162,11 +1156,11 @@ async def handle_withdraw_start(update: Update) -> None:
         return
     kb = InlineKeyboardMarkup([
         [
-            Inlinekb_btn("bKash", callback_data="wd:method:bKash", style="primary"),
-            Inlinekb_btn("Nagad", callback_data="wd:method:Nagad", style="primary"),
-            Inlinekb_btn("Binance", callback_data="wd:method:Binance", style="primary"),
+            ikb_btn("bKash", callback_data="wd:method:bKash", style="primary"),
+            ikb_btn("Nagad", callback_data="wd:method:Nagad", style="primary"),
+            ikb_btn("Binance", callback_data="wd:method:Binance", style="primary"),
         ],
-        [Inlinekb_btn("❌ Cancel", callback_data="wd:cancel", style="danger")],
+        [ikb_btn("❌ Cancel", callback_data="wd:cancel", style="danger")],
     ])
     await update.message.reply_text(
         f"💸 <b>Choose a withdraw method (min ৳{min_w:.0f})</b>\n"
@@ -1196,8 +1190,8 @@ async def handle_guide_menu(update: Update) -> None:
     if not guides:
         await update.message.reply_text("ℹ️ এই মুহূর্তে কোনো গাইডলাইন যুক্ত নেই।")
         return
-    kb = [[Inlinekb_btn(f"🎬 {g['name']}", callback_data=f"guide:view:{g['id']}", style="primary")] for g in guides]
-    await update.message.reply_text("🆕 আপনি কোন কাজের নিয়ম ও ভিডিও দেখতে চান?", reply_markup=InlineKeyboardMarkup(kb))
+    kb = [[ikb_btn(f"🎬 {g['name']}", callback_data=f"guide:view:{g['id']}", style="primary")] for g in guides]
+    await update.message.reply_text("🆕 আপনি কোন কাজের নিয়ম ও ভিডিও দেখতে চান?", reply_markup=InlineKeyboardMarkup(kb))
 
 
 # ==============================================================================
@@ -1212,7 +1206,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if data == "fjoin:check":
         _FJOIN_OK_CACHE.pop(uid, None)
         if await check_force_join(update, context):
-            await query.edit_message_text("✅ ধন্যবাদ! চ্যানেল জয়েন ভেরিফাই হয়েছে। এখন /start দিন।")
+            await query.edit_message_text("✅ ধন্যবাদ! চ্যানেল জয়েন ভেরিফাই হয়েছে। এখন /start দিন।")
         return
 
     if await get_setting("bot_active", "1") != "1" and not await is_admin(uid):
@@ -1228,7 +1222,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if data == "ref:leaderboard":
         top = await db.fetchall("SELECT full_name, referral_count, referral_earnings FROM users WHERE referral_count > 0 ORDER BY referral_count DESC LIMIT 10")
         if not top:
-            await query.message.reply_text("🏆 এখনো কোনো রেফারেল লিডারবোর্ড তৈরি হয়নি।")
+            await query.message.reply_text("🏆 এখনো কোনো রেফারেল লিডারবোর্ড তৈরি হয়নি।")
             return
         lines = ["🏆 <b>Team Leaderboard</b>\n"] + [
             f"{i+1}. {r['full_name']} — {r['referral_count']} refers (৳{r['referral_earnings']:.0f})"
@@ -1245,7 +1239,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         if g.get("video_file_id"):
             await query.message.reply_video(video=g["video_file_id"], caption=g.get("guide_text") or g["name"])
         else:
-            await query.message.reply_text(g.get("guide_text") or "গাইডলাইন পাওয়া যায়নি।")
+            await query.message.reply_text(g.get("guide_text") or "গাইডলাইন পাওয়া যায়নি।")
         return
 
     if data.startswith("fsub:cat:"):
@@ -1253,14 +1247,14 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         cat = await db.fetchone("SELECT * FROM file_submit_categories WHERE id = ?", (cid,))
         if not cat:
             return
-        context.user_data["state"] = f"user_fsub:{cat['name']}"
+        context.user_data["state"] = f"user_fsub:{cat['id']}"
         await query.edit_message_text(f"📤 অনুগ্রহ করে <b>{cat['name']}</b>-এর জন্য আপনার ফাইলটি এখানে পাঠান:", parse_mode=ParseMode.HTML)
         return
 
     if data == "wd:cancel":
         context.user_data.pop("wd_data", None)
         context.user_data.pop("state", None)
-        await query.edit_message_text("❌ উইথড্র বাতিল করা হয়েছে।")
+        await query.edit_message_text("❌ উইথড্র বাতিল করা হয়েছে।")
         return
 
     if data.startswith("wd:method:"):
@@ -1278,7 +1272,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         wd_id = int(wd_id_str)
         wd = await db.fetchone("SELECT * FROM withdrawals WHERE id = ?", (wd_id,))
         if not wd or wd["status"] != "pending":
-            await query.edit_message_text("ℹ️ এই উইথড্র রিকোয়েস্ট আগেই প্রসেস করা হয়েছে।")
+            await query.edit_message_text("ℹ️ এই উইথড্র রিকোয়েস্ট আগেই প্রসেস করা হয়েছে।")
             return
         now_str = datetime.datetime.now(BD_TZ).strftime("%Y-%m-%d %H:%M:%S")
         if action == "paid":
@@ -1286,13 +1280,13 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await db.execute("UPDATE users SET pending_withdraw = MAX(0, pending_withdraw - ?) WHERE user_id = ?", (wd["requested_amount"], wd["user_id"]))
             invalidate_user_cache(wd["user_id"])
             await query.edit_message_text(
-                f"✅ <b>Paid!</b> \n👤 UID: <code>{wd['user_id']}</code> | {wd['method']}: <code>{wd['account_number']}</code>\n💵 পাঠানো হয়েছে: ৳{wd['net_amount']:.2f}",
+                f"✅ <b>Paid!</b> \n👤 UID: <code>{wd['user_id']}</code> | {wd['method']}: <code>{wd['account_number']}</code>\n💵 পাঠানো হয়েছে: ৳{wd['net_amount']:.2f}",
                 parse_mode=ParseMode.HTML,
             )
             try:
                 await context.bot.send_message(
                     chat_id=wd["user_id"],
-                    text=f"✅ আপনার ৳{wd['net_amount']:.2f} ({wd['method']} - {wd['account_number']}) উইথড্র পেমেন্ট সম্পন্ন হয়েছে!",
+                    text=f"✅ আপনার ৳{wd['net_amount']:.2f} ({wd['method']} - {wd['account_number']}) উইথড্র পেমেন্ট সম্পন্ন হয়েছে!",
                 )
             except Exception:
                 pass
@@ -1303,11 +1297,11 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 (wd["requested_amount"], wd["requested_amount"], wd["user_id"]),
             )
             invalidate_user_cache(wd["user_id"])
-            await query.edit_message_text(f"❌ <b>Rejected & Refunded</b> ", parse_mode=ParseMode.HTML)
+            await query.edit_message_text("❌ <b>Rejected & Refunded</b>", parse_mode=ParseMode.HTML)
             try:
                 await context.bot.send_message(
                     chat_id=wd["user_id"],
-                    text=f"❌ আপনার ৳{wd['requested_amount']:.2f} উইথড্র রিকোয়েস্ট রিজেক্ট করা হয়েছে এবং টাকা আপনার ব্যালেন্সে ফেরত দেওয়া হয়েছে।",
+                    text=f"❌ আপনার ৳{wd['requested_amount']:.2f} উইথড্র রিকোয়েস্ট রিজেক্ট করা হয়েছে এবং টাকা আপনার ব্যালেন্সে ফেরত দেওয়া হয়েছে।",
                 )
             except Exception:
                 pass
@@ -1337,10 +1331,10 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
 
     if action == "edit_msgs":
         kb = [
-            [Inlinekb_btn("👋 Edit Welcome Message", callback_data="adm:emsg:msg_welcome", style="primary")],
-            [Inlinekb_btn("💬 Edit Support Message", callback_data="adm:emsg:msg_support", style="primary")],
-            [Inlinekb_btn("⚠️ Edit Referral Rules", callback_data="adm:emsg:msg_ref_rules", style="primary")],
-            [Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")],
+            [ikb_btn("👋 Edit Welcome Message", callback_data="adm:emsg:msg_welcome", style="primary")],
+            [ikb_btn("💬 Edit Support Message", callback_data="adm:emsg:msg_support", style="primary")],
+            [ikb_btn("⚠️ Edit Referral Rules", callback_data="adm:emsg:msg_ref_rules", style="primary")],
+            [ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")],
         ]
         await query.edit_message_text("📝 <b>Edit Bot Messages</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
@@ -1375,15 +1369,15 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         fj_active = (await get_setting("force_join_active", "0")) == "1"
         channels = await get_force_join_channels()
         kb = [
-            [Inlinekb_btn(f"{'🟢 Turn OFF' if fj_active else '🔴 Turn ON'} Force Join", callback_data="adm:fjoin_tog", style="primary")],
+            [ikb_btn(f"{'🟢 Turn OFF' if fj_active else '🔴 Turn ON'} Force Join", callback_data="adm:fjoin_tog", style="primary")],
         ]
         for idx, c in enumerate(channels):
             kb.append([
                 ikb_btn(f"✏️ {c.get('label', c['channel'])}", callback_data=f"adm:fjoin_edit:{idx}", style="primary"),
-                Inlinekb_btn("🗑 Delete", callback_data=f"adm:fjoin_del:{idx}", style="danger"),
+                ikb_btn("🗑 Delete", callback_data=f"adm:fjoin_del:{idx}", style="danger"),
             ])
-        kb.append([Inlinekb_btn("➕ Add Channel Link", callback_data="adm:fjoin_add", style="primary")])
-        kb.append([Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
+        kb.append([ikb_btn("➕ Add Channel Link", callback_data="adm:fjoin_add", style="primary")])
+        kb.append([ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
         ch_txt = "\n".join([f"{i+1}. <b>{c.get('label','Channel')}</b>: <code>{c['channel']}</code>" for i, c in enumerate(channels)]) or "কোনো চ্যানেল যুক্ত নেই।"
         await query.edit_message_text(
             f"📢 <b>Force Join Channels ({len(channels)}টি)</b>\n\n{ch_txt}",
@@ -1438,10 +1432,10 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         header = f"👁 <b>User Inbox & Activity</b>\n👤 {usr['full_name'] if usr else tuid} (<code>{tuid}</code>)\n\n"
         log_lines = [f"• [{l['created_at'][11:16]}] <b>{l['action_type']}</b>: {l['detail']}" for l in reversed(logs)] or ["কোনো অ্যাক্টিভিটি নেই।"]
         kb = [
-            [Inlinekb_btn("👤 Open Telegram Chat", url=f"tg://user?id={tuid}", style="primary")],
-            [Inlinekb_btn("📩 Send Message / File to Inbox", callback_data=f"adm:inbox_direct:{tuid}", style="primary")],
-            [Inlinekb_btn("🔄 Refresh", callback_data=f"adm:view_inbox:{tuid}", style="primary")],
-            [Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")],
+            [ikb_btn("👤 Open Telegram Chat", url=f"tg://user?id={tuid}", style="primary")],
+            [ikb_btn("📩 Send Message / File to Inbox", callback_data=f"adm:inbox_direct:{tuid}", style="primary")],
+            [ikb_btn("🔄 Refresh", callback_data=f"adm:view_inbox:{tuid}", style="primary")],
+            [ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")],
         ]
         await query.edit_message_text(header + "\n".join(log_lines), parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
@@ -1470,7 +1464,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
             [ikb_btn(f"📥 Receive: {r['full_name'] or r['user_id']} ({r['subcategory_name']} - {r['cnt']}টি)", callback_data=f"adm:recv:{r['user_id']}:{r['subcategory_id']}", style="success")]
             for r in rows
         ]
-        kb.append([Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
+        kb.append([ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
         await query.edit_message_text("📂 <b>Pending Submissions</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
 
@@ -1481,7 +1475,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
             (target_uid, sub_id),
         )
         if not subs:
-            await query.edit_message_text("❌ কোনো পেন্ডিং কাজ পাওয়া যায়নি।", reply_markup=back_to_admin_kb())
+            await query.edit_message_text("❌ কোনো পেন্ডিং কাজ পাওয়া যায়নি।", reply_markup=back_to_admin_kb())
             return
 
         sub_meta = await db.fetchone("SELECT * FROM subcategories WHERE id = ?", (sub_id,))
@@ -1537,7 +1531,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await query.message.reply_document(
             document=bio,
             filename=f"batch_{batch_id}_user_{target_uid}.xlsx",
-            caption=f"📊 <b>Received!</b> ({len(subs)}টি)\nসঠিক সারিতে <b>সবুজ</b> ও ভুলে <b>লাল</b> কালার দিয়ে <b>Upload Report (.xlsx)</b> করুন।",
+            caption=f"📊 <b>Received!</b> ({len(subs)}টি)\nসঠিক সারিতে <b>সবুজ</b> ও ভুলে <b>লাল</b> কালার দিয়ে <b>Upload Report (.xlsx)</b> করুন।",
             parse_mode=ParseMode.HTML,
         )
         try:
@@ -1551,7 +1545,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         try:
             await query.message.delete()
         except Exception:
-            await query.edit_message_text(f"✅ রিসিভ সম্পন্ন হয়েছে।", reply_markup=back_to_admin_kb())
+            await query.edit_message_text("✅ রিসিভ সম্পন্ন হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if action == "upload_report":
@@ -1567,8 +1561,8 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
     if action == "work_mgr":
         cats = await db.fetchall("SELECT * FROM categories ORDER BY id ASC")
         kb = [[ikb_btn(f"{'🟢' if c['is_active'] else '🔴'} {c.get('emoji','📌')} {c['name']}", callback_data=f"adm:cat:{c['id']}", style="danger")] for c in cats]
-        kb.append([Inlinekb_btn("➕ Add Main Category", callback_data="adm:add_cat", style="primary")])
-        kb.append([Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
+        kb.append([ikb_btn("➕ Add Main Category", callback_data="adm:add_cat", style="primary")])
+        kb.append([ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
         await query.edit_message_text("🛠 <b>Work Categories Manager</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
 
@@ -1582,13 +1576,13 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         cat = await db.fetchone("SELECT * FROM categories WHERE id = ?", (cat_id,))
         subs = await db.fetchall("SELECT * FROM subcategories WHERE category_id = ? ORDER BY id ASC", (cat_id,))
         kb = [[
-            Inlinekb_btn(f"{'🟢 ON' if cat['is_active'] else '🔴 OFF'} Toggle", callback_data=f"adm:cat_tog:{cat_id}", style="primary"),
-            Inlinekb_btn("🗑 Delete", callback_data=f"adm:cat_del:{cat_id}", style="danger"),
+            ikb_btn(f"{'🟢 ON' if cat['is_active'] else '🔴 OFF'} Toggle", callback_data=f"adm:cat_tog:{cat_id}", style="primary"),
+            ikb_btn("🗑 Delete", callback_data=f"adm:cat_del:{cat_id}", style="danger"),
         ]]
         for s in subs:
             kb.append([ikb_btn(f"{'🟢' if s['is_active'] else '🔴'} {s['name']} (৳{s['rate']:.0f})", callback_data=f"adm:sub:{s['id']}", style="danger")])
-        kb.append([Inlinekb_btn("➕ Add Subcategory", callback_data=f"adm:add_sub:{cat_id}", style="primary")])
-        kb.append([Inlinekb_btn("⬅️ Back", callback_data="adm:work_mgr", style="success")])
+        kb.append([ikb_btn("➕ Add Subcategory", callback_data=f"adm:add_sub:{cat_id}", style="primary")])
+        kb.append([ikb_btn("⬅️ Back", callback_data="adm:work_mgr", style="success")])
         await query.edit_message_text(f"📂 Category: <b>{cat['name']}</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
 
@@ -1621,15 +1615,15 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         step_txt = "\n".join([f"{i+1}. <b>{st['name']}</b> ({st.get('validator','text')})" for i, st in enumerate(steps)]) or "কোনো স্টেপ নেই"
         kb = [
             [
-                Inlinekb_btn(f"{'🟢 ON' if sub['is_active'] else '🔴 OFF'} Toggle", callback_data=f"adm:sub_tog:{sub_id}", style="primary"),
-                Inlinekb_btn("💲 Edit Rate", callback_data=f"adm:sub_rate:{sub_id}", style="primary"),
+                ikb_btn(f"{'🟢 ON' if sub['is_active'] else '🔴 OFF'} Toggle", callback_data=f"adm:sub_tog:{sub_id}", style="primary"),
+                ikb_btn("💲 Edit Rate", callback_data=f"adm:sub_rate:{sub_id}", style="primary"),
             ],
             [
-                Inlinekb_btn("➕ Add Step", callback_data=f"adm:step_add:{sub_id}", style="success"),
-                Inlinekb_btn("🗑 Clear Last Step", callback_data=f"adm:step_pop:{sub_id}", style="success"),
+                ikb_btn("➕ Add Step", callback_data=f"adm:step_add:{sub_id}", style="success"),
+                ikb_btn("🗑 Clear Last Step", callback_data=f"adm:step_pop:{sub_id}", style="success"),
             ],
-            [Inlinekb_btn("🗑 Delete Subcategory", callback_data=f"adm:sub_del:{sub_id}", style="danger")],
-            [Inlinekb_btn("⬅️ Back", callback_data=f"adm:cat:{sub['category_id']}", style="primary")],
+            [ikb_btn("🗑 Delete Subcategory", callback_data=f"adm:sub_del:{sub_id}", style="danger")],
+            [ikb_btn("⬅️ Back", callback_data=f"adm:cat:{sub['category_id']}", style="primary")],
         ]
         await query.edit_message_text(f"📌 <b>{sub['name']}</b> | Rate: <b>৳{sub['rate']:.0f}</b>\n\n<b>Steps:</b>\n{step_txt}", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
@@ -1680,11 +1674,11 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         fee = await get_setting("withdraw_fee", "5")
         ref_b = await get_setting("referral_bonus", "3")
         kb = [
-            [Inlinekb_btn(f"📉 Min Withdraw: ৳{min_w}", callback_data="adm:set_min_wd", style="primary")],
-            [Inlinekb_btn(f"💸 Withdraw Fee: ৳{fee}", callback_data="adm:set_wd_fee", style="primary")],
-            [Inlinekb_btn(f"🎁 Referral Bonus: ৳{ref_b}", callback_data="adm:set_ref_bonus", style="primary")],
+            [ikb_btn(f"📉 Min Withdraw: ৳{min_w}", callback_data="adm:set_min_wd", style="primary")],
+            [ikb_btn(f"💸 Withdraw Fee: ৳{fee}", callback_data="adm:set_wd_fee", style="primary")],
+            [ikb_btn(f"🎁 Referral Bonus: ৳{ref_b}", callback_data="adm:set_ref_bonus", style="primary")],
             [ikb_btn("💳 Edit User Balance (UID)", callback_data="adm:edit_user_bal", style="primary")],
-            [Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")],
+            [ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")],
         ]
         await query.edit_message_text("💰 <b>Balance & Withdraw Settings</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
@@ -1705,9 +1699,9 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         prefix = await get_setting("password_prefix", "succes@")
         rtime = await get_setting("password_reset_time", "00:00")
         kb = [
-            [Inlinekb_btn(f"✏️ Prefix: {prefix}", callback_data="adm:set_pwd_prefix", style="primary")],
+            [ikb_btn(f"✏️ Prefix: {prefix}", callback_data="adm:set_pwd_prefix", style="primary")],
             [ikb_btn(f"⏰ Reset Time (BD): {rtime}", callback_data="adm:set_pwd_time", style="primary")],
-            [Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")],
+            [ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")],
         ]
         await query.edit_message_text(f"🔑 <b>Auto Password Settings</b>\nবর্তমান: <code>{cur_pwd}</code>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
@@ -1719,17 +1713,17 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
 
     if action == "set_pwd_time":
         context.user_data["state"] = "adm_set_pwd_time"
-        await query.edit_message_text("বাংলাদেশ সময় লিখুন (যেমন: <code>00:00</code>):", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+        await query.edit_message_text("বাংলাদেশ সময় লিখুন (যেমন: <code>00:00</code>):", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
         return
 
     if action == "btn_mgr":
         lbls = await get_main_btn_labels()
         extra_btns = json.loads(await get_setting("extra_buttons_json", "[]"))
-        kb = [[Inlinekb_btn(f"✏️ Rename: {v}", callback_data=f"adm:mbtn_edit:{k}", style="primary")] for k, v in lbls.items()]
+        kb = [[ikb_btn(f"✏️ Rename: {v}", callback_data=f"adm:mbtn_edit:{k}", style="primary")] for k, v in lbls.items()]
         for i, b in enumerate(extra_btns):
-            kb.append([Inlinekb_btn(f"🗑 Remove Extra: {b['label']}", callback_data=f"adm:btn_del:{i}", style="danger")])
-        kb.append([Inlinekb_btn("➕ Add Extra Main Button", callback_data="adm:btn_add", style="primary")])
-        kb.append([Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
+            kb.append([ikb_btn(f"🗑 Remove Extra: {b['label']}", callback_data=f"adm:btn_del:{i}", style="danger")])
+        kb.append([ikb_btn("➕ Add Extra Main Button", callback_data="adm:btn_add", style="primary")])
+        kb.append([ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
         await query.edit_message_text("⌨️ <b>Main Keyboard Buttons Manager</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
 
@@ -1755,9 +1749,9 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
 
     if action == "guide_mgr":
         guides = await db.fetchall("SELECT * FROM guide_categories ORDER BY id ASC")
-        kb = [[Inlinekb_btn(f"🎬 {g['name']}", callback_data=f"adm:guide_edit:{g['id']}", style="primary")] for g in guides]
-        kb.append([Inlinekb_btn("➕ Add Guide Category", callback_data="adm:guide_add", style="primary")])
-        kb.append([Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
+        kb = [[ikb_btn(f"🎬 {g['name']}", callback_data=f"adm:guide_edit:{g['id']}", style="primary")] for g in guides]
+        kb.append([ikb_btn("➕ Add Guide Category", callback_data="adm:guide_add", style="primary")])
+        kb.append([ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
         await query.edit_message_text("🎬 <b>আমি নতুন (Guide Manager)</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
 
@@ -1768,14 +1762,14 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
 
     if action == "guide_edit":
         context.user_data["state"] = f"adm_guide_upload:{parts[2]}"
-        await query.edit_message_text("টিউটোরিয়াল <b>Video</b> অথবা <b>Text</b> পাঠান:", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+        await query.edit_message_text("টিউটোরিয়াল <b>Video</b> অথবা <b>Text</b> পাঠান:", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
         return
 
     if action == "fsub_mgr":
         cats = await db.fetchall("SELECT * FROM file_submit_categories ORDER BY id ASC")
         kb = [[ikb_btn(f"{'🟢' if c['is_active'] else '🔴'} {c['name']} (৳{c['rate']:.0f})", callback_data=f"adm:fsub_cat:{c['id']}", style="danger")] for c in cats]
-        kb.append([Inlinekb_btn("➕ Add File Submit Category", callback_data="adm:fsub_add", style="success")])
-        kb.append([Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
+        kb.append([ikb_btn("➕ Add File Submit Category", callback_data="adm:fsub_add", style="success")])
+        kb.append([ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
         await query.edit_message_text("📁 <b>File Submit Categories</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
 
@@ -1784,19 +1778,19 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         c = await db.fetchone("SELECT * FROM file_submit_categories WHERE id = ?", (cid,))
         kb = [
             [
-                Inlinekb_btn(f"{'🟢 ON' if c['is_active'] else '🔴 OFF'} Toggle", callback_data=f"adm:fsub_tog:{cid}", style="primary"),
-                Inlinekb_btn("🗑 Delete", callback_data=f"adm:fsub_del:{cid}", style="danger"),
+                ikb_btn(f"{'🟢 ON' if c['is_active'] else '🔴 OFF'} Toggle", callback_data=f"adm:fsub_tog:{cid}", style="primary"),
+                ikb_btn("🗑 Delete", callback_data=f"adm:fsub_del:{cid}", style="danger"),
             ],
             [
-                Inlinekb_btn(f"🕒 Time: {c['cutoff_time']}", callback_data=f"adm:fsub_edit:{cid}:cutoff_time", style="primary"),
-                Inlinekb_btn(f"৳ Rate: {c['rate']:.0f}", callback_data=f"adm:fsub_edit:{cid}:rate", style="primary"),
+                ikb_btn(f"🕒 Time: {c['cutoff_time']}", callback_data=f"adm:fsub_edit:{cid}:cutoff_time", style="primary"),
+                ikb_btn(f"৳ Rate: {c['rate']:.0f}", callback_data=f"adm:fsub_edit:{cid}:rate", style="primary"),
             ],
             [
-                Inlinekb_btn(f"💲 USDT: {c['usdt_rate']:.4f}", callback_data=f"adm:fsub_edit:{cid}:usdt_rate", style="primary"),
-                Inlinekb_btn(f"📋 Report Col: {c['report_col']}", callback_data=f"adm:fsub_edit:{cid}:report_col", style="primary"),
+                ikb_btn(f"💲 USDT: {c['usdt_rate']:.4f}", callback_data=f"adm:fsub_edit:{cid}:usdt_rate", style="primary"),
+                ikb_btn(f"📋 Report Col: {c['report_col']}", callback_data=f"adm:fsub_edit:{cid}:report_col", style="primary"),
             ],
-            [Inlinekb_btn(f"🖍 Format: {c['required_format']}", callback_data=f"adm:fsub_edit:{cid}:required_format", style="primary")],
-            [Inlinekb_btn("⬅️ Back", callback_data="adm:fsub_mgr", style="primary")],
+            [ikb_btn(f"🖍 Format: {c['required_format']}", callback_data=f"adm:fsub_edit:{cid}:required_format", style="primary")],
+            [ikb_btn("⬅️ Back", callback_data="adm:fsub_mgr", style="primary")],
         ]
         await query.edit_message_text(
             f"📁 <b>{c['name']}</b>\n"
@@ -1826,8 +1820,8 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         cid, field = parts[2], parts[3]
         context.user_data["state"] = f"adm_fsub_edit:{cid}:{field}"
         hints = {
-            "cutoff_time": "নতুন শেষ সময় লিখুন (যেমন: <code>10:00 PM</code>):",
-            "rate": "নতুন রেট (টাকায়) লিখুন (যেমন: <code>5</code>):",
+            "cutoff_time": "নতুন শেষ সময় লিখুন (যেমন: <code>10:00 PM</code>):",
+            "rate": "নতুন রেট (টাকায়) লিখুন (যেমন: <code>5</code>):",
             "usdt_rate": "নতুন ডলার/USDT রেট লিখুন (যেমন: <code>0.0394</code>):",
             "required_format": "নতুন ফরম্যাট লিখুন (যেমন: <code>Uid pas cookies</code> বা <code>Uid pas 2fa hotmail</code>):",
             "report_col": "রিপোর্ট কলামের নাম লিখুন (<code>UID</code> অথবা <code>Username</code>):",
@@ -1844,7 +1838,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         fsub_id = int(parts[2])
         fs = await db.fetchone("SELECT * FROM file_submissions WHERE id = ?", (fsub_id,))
         if not fs:
-            await query.answer("পাওয়া যায়নি", show_alert=True)
+            await query.answer("পাওয়া যায়নি", show_alert=True)
             return
         await db.execute("UPDATE file_submissions SET status = 'received' WHERE id = ?", (fsub_id,))
         await db.execute("UPDATE file_submit_rows SET status = 'received' WHERE fsub_id = ? AND status = 'pending'", (fsub_id,))
@@ -1867,8 +1861,8 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         if not cats:
             await query.edit_message_text("❌ কোনো File Submit ক্যাটাগরি নেই।", reply_markup=back_to_admin_kb())
             return
-        kb = [[Inlinekb_btn(f"📊 {c['name']}", callback_data=f"adm:fsub_rep_cat:{c['id']}", style="primary")] for c in cats]
-        kb.append([Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
+        kb = [[ikb_btn(f"📊 {c['name']}", callback_data=f"adm:fsub_rep_cat:{c['id']}", style="primary")] for c in cats]
+        kb.append([ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
         await query.edit_message_text("📊 কোন ক্যাটাগরির <b>.xlsx</b> রিপোর্ট আপলোড করবেন?", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
 
@@ -1895,12 +1889,12 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
             kb.append([ikb_btn(f"👁 {u['full_name']} ({u['user_id']})", callback_data=f"adm:view_inbox:{u['user_id']}", style="primary")])
         nav = []
         if page > 0:
-            nav.append(Inlinekb_btn("⬅️ Prev", callback_data=f"adm:user_dir:{page-1}", style="primary"))
+            nav.append(ikb_btn("⬅️ Prev", callback_data=f"adm:user_dir:{page-1}", style="primary"))
         if offset + limit < total_u:
-            nav.append(Inlinekb_btn("Next ➡️", callback_data=f"adm:user_dir:{page+1}", style="primary"))
+            nav.append(ikb_btn("Next ➡️", callback_data=f"adm:user_dir:{page+1}", style="primary"))
         if nav:
             kb.append(nav)
-        kb.append([Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
+        kb.append([ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
         await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
 
@@ -1926,11 +1920,11 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         kb = []
         for aid in adm_ids:
             if aid == OWNER_ID:
-                kb.append([Inlinekb_btn(f"👑 Owner: {aid}", callback_data="adm:noop", style="primary")])
+                kb.append([ikb_btn(f"👑 Owner: {aid}", callback_data="adm:noop", style="primary")])
             else:
-                kb.append([Inlinekb_btn(f"🗑 Remove Admin: {aid}", callback_data=f"adm:adm_del:{aid}", style="danger")])
+                kb.append([ikb_btn(f"🗑 Remove Admin: {aid}", callback_data=f"adm:adm_del:{aid}", style="danger")])
         kb.append([ikb_btn("➕ Add Admin (UID)", callback_data="adm:adm_add", style="success")])
-        kb.append([Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
+        kb.append([ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
         await query.edit_message_text("👮 <b>Manage Admins</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
         return
 
@@ -1997,7 +1991,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     lbl = await get_main_btn_labels()
-    # Navigation inside Work Reply Keyboards
     if text in ("◀️ Work Menu ▸", lbl["work"], "💼 Work", "Work"):
         log_activity_bg(uid, "MENU", text)
         await handle_work_menu(update, context)
@@ -2008,7 +2001,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text("Back to main menu.", reply_markup=await main_keyboard(uid))
         return
 
-    # Check if user tapped a Category button (e.g. "📸 Instagram Work ▸")
     cats = await get_active_categories()
     for c in cats:
         btn_lbl = f"{c.get('emoji', '📌')} {c['name']} Work ▸"
@@ -2025,7 +2017,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
             return
 
-    # Check if user tapped a Subcategory button (e.g. "USA Instagram • ৳5")
     for c in cats:
         subs = await get_active_subcategories(c["id"])
         for s in subs:
@@ -2033,7 +2024,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             if text == sub_lbl:
                 steps = json.loads(s["steps_json"])
                 if not steps:
-                    await update.message.reply_text("❌ এই কাজের কোনো ধাপ সেট করা হয়নি।")
+                    await update.message.reply_text("❌ এই কাজের কোনো ধাপ সেট করা হয়নি।")
                     return
                 gen_name, gen_username = await acquire_username_profile(uid)
                 gen_password = await get_current_password()
@@ -2064,7 +2055,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await send_next_step_prompt(update.effective_chat.id, context, task)
                 return
 
-    # Check File Submit Reply Keyboard buttons
     if text.startswith("📁 ") and text.endswith(" Submit ▸"):
         cat_name = text[2:-9].strip()
         cat = await db.fetchone("SELECT * FROM file_submit_categories WHERE name = ? AND is_active = 1", (cat_name,))
@@ -2083,7 +2073,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
 
-    # Main Menu Buttons
     if text in (lbl["fsub"], "📁 File Submit", "File Submit"):
         log_activity_bg(uid, "MENU", "File Submit")
         await handle_file_submit_menu(update)
@@ -2103,7 +2092,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text(
             sup_msg,
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[Inlinekb_btn("📞 Contact Support", url=sup, style="primary")]]),
+            reply_markup=InlineKeyboardMarkup([[ikb_btn("📞 Contact Support", url=sup, style="primary")]]),
         )
     elif text in (lbl["new"], "🆕 I'm New", "🆕 আমি নতুন", "আমি নতুন"):
         log_activity_bg(uid, "MENU", "আমি নতুন")
@@ -2165,21 +2154,21 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         )
         log_activity_bg(uid, "WITHDRAW", f"#WD-{wd_id} ৳{amount} via {wd_data['method']}")
         await msg.reply_text(
-            f"✅ <b>উইথড্র রিকোয়েস্ট সম্পন্ন!</b> \n"
+            f"✅ <b>উইথড্র রিকোয়েস্ট সম্পন্ন!</b> \n"
             f"• মেথড: {wd_data['method']}\n• অ্যাকাউন্ট: <code>{wd_data['account']}</code>\n"
-            f"• রিকোয়েস্ট: ৳{amount:.2f} | ফি: ৳{fee:.2f}\n• <b>আপনি পাবেন: ৳{net:.2f}</b>",
+            f"• রিকোয়েস্ট: ৳{amount:.2f} | ফি: ৳{fee:.2f}\n• <b>আপনি পাবেন: ৳{net:.2f}</b>",
             parse_mode=ParseMode.HTML,
         )
         adm_kb = InlineKeyboardMarkup([[
-            Inlinekb_btn("✅ Paid", callback_data=f"wd_adm:paid:{wd_id}", style="primary"),
-            Inlinekb_btn("❌ Reject & Refund", callback_data=f"wd_adm:reject:{wd_id}", style="primary"),
+            ikb_btn("✅ Paid", callback_data=f"wd_adm:paid:{wd_id}", style="primary"),
+            ikb_btn("❌ Reject & Refund", callback_data=f"wd_adm:reject:{wd_id}", style="primary"),
         ]])
         for adm_id in await get_all_admin_ids():
             try:
                 await context.bot.send_message(
                     chat_id=adm_id,
                     text=(
-                        f"💸 <b>নতুন উইথড্র রিকোয়েস্ট!</b> \n"
+                        f"💸 <b>নতুন উইথড্র রিকোয়েস্ট!</b> \n"
                         f"👤 {update.effective_user.full_name} (<code>{uid}</code>)\n"
                         f"💳 {wd_data['method']}: <code>{wd_data['account']}</code>\n"
                         f"📊 ৳{amount:.2f} - ৳{fee:.2f} = <b>৳{net:.2f}</b>"
@@ -2200,7 +2189,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         cat = await db.fetchone("SELECT * FROM file_submit_categories WHERE id = ?", (cat_id,))
         if not cat:
             context.user_data.pop("state", None)
-            await msg.reply_text("❌ ক্যাটাগরি পাওয়া যায়নি।", reply_markup=await main_keyboard(uid))
+            await msg.reply_text("❌ ক্যাটাগরি পাওয়া যায়নি।", reply_markup=await main_keyboard(uid))
             return
         fname = (msg.document.file_name or "").lower() if msg.document else ""
         if not msg.document or not fname.endswith(".xlsx"):
@@ -2241,9 +2230,9 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
             f"💰 রিপোর্ট আসলে শীঘ্রই ব্যালেন্স অটোমেটিক আপনার একাউন্টে যোগ হয়ে যাবে",
             parse_mode=ParseMode.HTML,
         )
-        await msg.reply_text("📋 ফাইলটি অ্যাডমিন রিভিউয়ের জন্য পাঠানো হয়েছে।", reply_markup=await main_keyboard(uid))
+        await msg.reply_text("📋 ফাইলটি অ্যাডমিন রিভিউয়ের জন্য পাঠানো হয়েছে।", reply_markup=await main_keyboard(uid))
 
-        recv_kb = InlineKeyboardMarkup([[Inlinekb_btn("📥 Receive File", callback_data=f"adm:fsub_recv:{fsub_id}", style="primary")]])
+        recv_kb = InlineKeyboardMarkup([[ikb_btn("📥 Receive File", callback_data=f"adm:fsub_recv:{fsub_id}", style="primary")]])
         for adm_id in await get_all_admin_ids():
             try:
                 await context.bot.send_document(
@@ -2277,9 +2266,9 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         header = f"👁 <b>User Inbox & Activity</b>\n👤 {usr['full_name'] if usr else tuid} (<code>{tuid}</code>)\n\n"
         log_lines = [f"• [{l['created_at'][11:16]}] <b>{l['action_type']}</b>: {l['detail']}" for l in reversed(logs)] or ["কোনো অ্যাক্টিভিটি নেই।"]
         kb = InlineKeyboardMarkup([
-            [Inlinekb_btn("👤 Open Telegram Chat", url=f"tg://user?id={tuid}", style="primary")],
-            [Inlinekb_btn("📩 Send Message / File to Inbox", callback_data=f"adm:inbox_direct:{tuid}", style="primary")],
-            [Inlinekb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")],
+            [ikb_btn("👤 Open Telegram Chat", url=f"tg://user?id={tuid}", style="primary")],
+            [ikb_btn("📩 Send Message / File to Inbox", callback_data=f"adm:inbox_direct:{tuid}", style="primary")],
+            [ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")],
         ])
         await msg.reply_text(header + "\n".join(log_lines), parse_mode=ParseMode.HTML, reply_markup=kb)
         return
@@ -2291,7 +2280,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         await msg.reply_text(
             "🔗 মেসেজের নিচে কোনো লিংকযুক্ত বাটন দিতে চাইলে লিখুন:\n"
             "<code>Button Text | https://example.com</code>\n\n"
-            "আর বাটন ছাড়া পাঠাতে চাইলে <code>skip</code> লিখুন:",
+            "আর বাটন ছাড়া পাঠাতে চাইলে <code>skip</code> লিখুন:",
             parse_mode=ParseMode.HTML,
         )
         return
@@ -2303,7 +2292,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         kb = None
         if text.lower() != "skip" and "|" in text:
             b_lbl, b_url = [x.strip() for x in text.split("|", 1)]
-            kb = InlineKeyboardMarkup([[Inlinekb_btn(b_lbl, url=b_url, style="primary")]])
+            kb = InlineKeyboardMarkup([[ikb_btn(b_lbl, url=b_url, style="primary")]])
 
         users = await db.fetchall("SELECT user_id FROM users")
         groups = await db.fetchall("SELECT chat_id FROM bot_groups")
@@ -2315,7 +2304,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
                 sent += 1
             except Exception:
                 pass
-        await msg.reply_text(f"📢 ব্রডকাস্ট সম্পন্ন! পাঠানো হয়েছে: <b>{sent}টি</b> চ্যাট/গ্রুপে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+        await msg.reply_text(f"📢 ব্রডকাস্ট সম্পন্ন! পাঠানো হয়েছে: <b>{sent}টি</b> চ্যাট/গ্রুপে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_fjoin_add" or state.startswith("adm_fjoin_edit:"):
@@ -2335,7 +2324,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
                 channels[idx] = entry
         await set_setting("force_join_channels_json", json.dumps(channels, ensure_ascii=False))
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ Force Join চ্যানেল আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ Force Join চ্যানেল আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_upload_report":
@@ -2364,9 +2353,9 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         context.user_data.pop("state", None)
         try:
             await msg.copy(chat_id=target_uid)
-            await msg.reply_text(f"✅ UID <code>{target_uid}</code>-এ পাঠানো হয়েছে!", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+            await msg.reply_text(f"✅ UID <code>{target_uid}</code>-এ পাঠানো হয়েছে!", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
         except Exception as e:
-            await msg.reply_text(f"❌ পাঠানো যায়নি: {e}", reply_markup=back_to_admin_kb())
+            await msg.reply_text(f"❌ পাঠানো যায়নি: {e}", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_add_cat":
@@ -2377,7 +2366,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         await db.execute("INSERT INTO categories (name, emoji, is_active) VALUES (?, ?, 1)", (cname, emoji))
         _CATS_CACHE = None
         context.user_data.pop("state", None)
-        await msg.reply_text(f"✅ ক্যাটাগরি <b>{emoji} {cname}</b> যুক্ত হয়েছে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+        await msg.reply_text(f"✅ ক্যাটাগরি <b>{emoji} {cname}</b> যুক্ত হয়েছে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
         return
 
     if state.startswith("adm_add_sub:"):
@@ -2391,7 +2380,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         )
         _SUBS_CACHE.pop(cat_id, None)
         context.user_data.pop("state", None)
-        await msg.reply_text(f"✅ সাব-ক্যাটাগরি <b>{sname}</b> (৳{srate:.0f}) যুক্ত হয়েছে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+        await msg.reply_text(f"✅ সাব-ক্যাটাগরি <b>{sname}</b> (৳{srate:.0f}) যুক্ত হয়েছে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
         return
 
     if state.startswith("adm_sub_rate:"):
@@ -2401,7 +2390,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         if sub:
             _SUBS_CACHE.pop(sub["category_id"], None)
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ রেট আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ রেট আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if state.startswith("adm_step_add:"):
@@ -2415,25 +2404,25 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         await db.execute("UPDATE subcategories SET steps_json = ? WHERE id = ?", (json.dumps(steps, ensure_ascii=False), sub_id))
         _SUBS_CACHE.pop(sub["category_id"], None)
         context.user_data.pop("state", None)
-        await msg.reply_text(f"✅ নতুন স্টেপ <b>{bname}</b> যুক্ত হয়েছে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+        await msg.reply_text(f"✅ নতুন স্টেপ <b>{bname}</b> যুক্ত হয়েছে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_set_min_wd":
         await set_setting("min_withdraw", str(float(text)))
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ Minimum Withdraw আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ Minimum Withdraw আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_set_wd_fee":
         await set_setting("withdraw_fee", str(float(text)))
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ Withdraw Fee আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ Withdraw Fee আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_set_ref_bonus":
         await set_setting("referral_bonus", str(float(text)))
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ Referral Bonus আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ Referral Bonus আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_edit_user_bal":
@@ -2442,19 +2431,19 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         await db.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amt, tuid))
         invalidate_user_cache(tuid)
         context.user_data.pop("state", None)
-        await msg.reply_text(f"✅ UID {tuid}-এর ব্যালেন্সে {amt:+.2f} আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
+        await msg.reply_text(f"✅ UID {tuid}-এর ব্যালেন্সে {amt:+.2f} আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_set_pwd_prefix":
         await set_setting("password_prefix", text)
         context.user_data.pop("state", None)
-        await msg.reply_text(f"✅ নতুন পাসওয়ার্ড: <code>{await get_current_password()}</code>", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+        await msg.reply_text(f"✅ নতুন পাসওয়ার্ড: <code>{await get_current_password()}</code>", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_set_pwd_time":
         await set_setting("password_reset_time", text)
         context.user_data.pop("state", None)
-        await msg.reply_text(f"✅ রিসেট টাইম আপডেট হয়েছে ({text})।", reply_markup=back_to_admin_kb())
+        await msg.reply_text(f"✅ রিসেট টাইম আপডেট হয়েছে ({text})।", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_btn_add":
@@ -2463,13 +2452,13 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         extra_btns.append({"label": p[0], "reply": p[1]})
         await set_setting("extra_buttons_json", json.dumps(extra_btns, ensure_ascii=False))
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ নতুন বাটন যুক্ত হয়েছে!", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ নতুন বাটন যুক্ত হয়েছে!", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_guide_add":
         await db.execute("INSERT INTO guide_categories (name, guide_text, video_file_id, is_active) VALUES (?, ?, '', 1)", (text, "গাইডলাইন"))
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ গাইড ক্যাটাগরি যুক্ত হয়েছে।", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ গাইড ক্যাটাগরি যুক্ত হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if state.startswith("adm_guide_upload:"):
@@ -2479,7 +2468,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         else:
             await db.execute("UPDATE guide_categories SET guide_text = ? WHERE id = ?", (text, gid))
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ গাইড আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ গাইড আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_fsub_add":
@@ -2488,7 +2477,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
             (text,),
         )
         context.user_data.pop("state", None)
-        await msg.reply_text(f"✅ File Submit ক্যাটাগরি <b>{text}</b> যুক্ত হয়েছে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
+        await msg.reply_text(f"✅ File Submit ক্যাটাগরি <b>{text}</b> যুক্ত হয়েছে।", parse_mode=ParseMode.HTML, reply_markup=back_to_admin_kb())
         return
 
     if state.startswith("adm_fsub_edit:"):
@@ -2497,7 +2486,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         val: Any = float(text) if field in ("rate", "usdt_rate") else text
         await db.execute(f"UPDATE file_submit_categories SET {field} = ? WHERE id = ?", (val, cid))
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
         return
 
     if state.startswith("adm_fsub_report:"):
@@ -2521,7 +2510,7 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         await db.execute("DELETE FROM users WHERE user_id = ?", (tuid,))
         invalidate_user_cache(tuid)
         context.user_data.pop("state", None)
-        await msg.reply_text(f"🗑 UID {tuid}-এর সব ডেটা মুছে ফেলা হয়েছে।", reply_markup=back_to_admin_kb())
+        await msg.reply_text(f"🗑 UID {tuid}-এর সব ডেটা মুছে ফেলা হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_add_admin":
@@ -2535,14 +2524,14 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         )
         _ADMINS_CACHE = None
         context.user_data.pop("state", None)
-        await msg.reply_text(f"✅ {aid} কে অ্যাডমিন করা হয়েছে।", reply_markup=back_to_admin_kb())
+        await msg.reply_text(f"✅ {aid} কে অ্যাডমিন করা হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
     if state.startswith("adm_emsg:"):
         mkey = state.split(":", 1)[1]
         await set_setting(mkey, text)
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ মেসেজ আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ মেসেজ আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
         return
 
     if state.startswith("adm_mbtn_edit:"):
@@ -2551,13 +2540,13 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         lbls[bkey] = text
         await set_setting("main_btns_json", json.dumps(lbls, ensure_ascii=False))
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ বাটনের নাম আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ বাটনের নাম আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
         return
 
     if state == "adm_edit_support":
         await set_setting("support_link", text)
         context.user_data.pop("state", None)
-        await msg.reply_text("✅ সাপোর্ট লিংক আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
+        await msg.reply_text("✅ সাপোর্ট লিংক আপডেট হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
 
@@ -2570,7 +2559,7 @@ async def process_admin_report_excel(msg, context: ContextTypes.DEFAULT_TYPE, bi
 
     headers = [str(c.value).strip() if c.value is not None else "" for c in ws[1]]
     if "Submission_ID" not in headers:
-        await msg.reply_text("❌ এই এক্সেল ফাইলে `Submission_ID` কলাম পাওয়া যায়নি!", reply_markup=back_to_admin_kb())
+        await msg.reply_text("❌ এই এক্সেল ফাইলে `Submission_ID` কলাম পাওয়া যায়নি!", reply_markup=back_to_admin_kb())
         return
 
     sub_id_col = headers.index("Submission_ID") + 1
@@ -2630,7 +2619,7 @@ async def process_admin_report_excel(msg, context: ContextTypes.DEFAULT_TYPE, bi
                 try:
                     await context.bot.send_message(
                         chat_id=ref_id,
-                        text=f"🎉 অভিনন্দন! আপনার রেফার করা ইউজারের প্রথম কাজ অ্যাপ্রুভ হওয়ায় আপনার ব্যালেন্সে <b>৳{ref_bonus:.0f}</b> বোনাস যোগ হয়েছে!",
+                        text=f"🎉 অভিনন্দন! আপনার রেফার করা ইউজারের প্রথম কাজ অ্যাপ্রুভ হওয়ায় আপনার ব্যালেন্সে <b>৳{ref_bonus:.0f}</b> বোনাস যোগ হয়েছে!",
                         parse_mode=ParseMode.HTML,
                     )
                 except Exception:
@@ -2658,10 +2647,10 @@ async def process_admin_report_excel(msg, context: ContextTypes.DEFAULT_TYPE, bi
             await context.bot.send_message(
                 chat_id=tuid,
                 text=(
-                    "📊 <b>কাজের রিপোর্ট প্রকাশিত হয়েছে!</b>\n\n"
+                    "📊 <b>কাজের রিপোর্ট প্রকাশিত হয়েছে!</b>\n\n"
                     f"✅ অ্যাপ্রুভ: <b>{v['approved']}টি</b>\n"
                     f"❌ রিজেক্ট: <b>{v['rejected']}টি</b>\n"
-                    f"💰 ব্যালেন্সে যোগ হয়েছে: <b>৳{v['earned']:.2f}</b>"
+                    f"💰 ব্যালেন্সে যোগ হয়েছে: <b>৳{v['earned']:.2f}</b>"
                 ),
                 parse_mode=ParseMode.HTML,
             )
@@ -2678,7 +2667,7 @@ async def process_admin_report_excel(msg, context: ContextTypes.DEFAULT_TYPE, bi
 async def process_admin_fsub_report_excel(msg, context: ContextTypes.DEFAULT_TYPE, bio: io.BytesIO, cat_id: int) -> None:
     cat = await db.fetchone("SELECT * FROM file_submit_categories WHERE id = ?", (cat_id,))
     if not cat:
-        await msg.reply_text("❌ ক্যাটাগরি পাওয়া যায়নি।", reply_markup=back_to_admin_kb())
+        await msg.reply_text("❌ ক্যাটাগরি পাওয়া যায়নি।", reply_markup=back_to_admin_kb())
         return
 
     wb = openpyxl.load_workbook(bio)
@@ -2735,7 +2724,7 @@ async def process_admin_fsub_report_excel(msg, context: ContextTypes.DEFAULT_TYP
                 try:
                     await context.bot.send_message(
                         chat_id=ref_id,
-                        text=f"🎉 অভিনন্দন! আপনার রেফার করা ইউজারের প্রথম কাজ অ্যাপ্রুভ হওয়ায় আপনার ব্যালেন্সে <b>৳{ref_bonus:.0f}</b> বোনাস যোগ হয়েছে!",
+                        text=f"🎉 অভিনন্দন! আপনার রেফার করা ইউজারের প্রথম কাজ অ্যাপ্রুভ হওয়ায় আপনার ব্যালেন্সে <b>৳{ref_bonus:.0f}</b> বোনাস যোগ হয়েছে!",
                         parse_mode=ParseMode.HTML,
                     )
                 except Exception:
@@ -2773,7 +2762,7 @@ async def process_admin_fsub_report_excel(msg, context: ContextTypes.DEFAULT_TYP
                     f"🗓 <b>আপনার {cat['name']} ক্যাটাগরির ({today_str}) রিপোর্ট এসেছে!</b>\n\n"
                     f"✅ <b>Ok ID:</b> {res['ok']} টি\n"
                     f"❌ <b>Back ID:</b> {res['back']} টি\n"
-                    f"💲 <b>Balance অ্যাড হয়েছে:</b> {res['earned']:.0f} ৳"
+                    f"💲 <b>Balance অ্যাড হয়েছে:</b> {res['earned']:.0f} ৳"
                 ),
                 parse_mode=ParseMode.HTML,
             )
