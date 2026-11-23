@@ -698,7 +698,7 @@ async def main_keyboard(user_id: int) -> ReplyKeyboardMarkup:
 
 async def work_categories_keyboard() -> ReplyKeyboardMarkup:
     cats = await get_active_categories()
-    rows = [[KeyboardButton(f"{c.get('emoji', '📌')} {c['name']} Work ▸")] for c in cats]
+    rows = [[kb_btn(f"{c.get('emoji', '📌')} {c['name']} Work ▸", style="primary")] for c in cats]
     rows.append([kb_btn("❌ Cancel", style="danger")])
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
@@ -765,6 +765,45 @@ async def admin_panel_keyboard() -> InlineKeyboardMarkup:
 
 def back_to_admin_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")]])
+
+
+MSG_SLOTS: Dict[str, Tuple[str, Optional[str], str]] = {
+    "welcome": ("👋 Welcome Message", "msg_welcome", "photo_welcome"),
+    "support": ("💬 Support Message", "msg_support", "photo_support"),
+    "ref_rules": ("⚠️ Referral Rules", "msg_ref_rules", "photo_ref_rules"),
+    "work": ("💼 Work Menu", None, "photo_work"),
+    "fsub": ("📁 File Submit Menu", None, "photo_fsub"),
+    "bal": ("💰 Balance", None, "photo_balance"),
+    "wd": ("💸 Withdraw", None, "photo_withdraw"),
+    "ref": ("🎁 My Referral", None, "photo_referral"),
+    "new": ("🆕 I'm New", None, "photo_new"),
+}
+
+
+async def reply_with_optional_photo(
+    message,
+    text: str,
+    photo_key: str,
+    reply_markup=None,
+    parse_mode: Optional[str] = ParseMode.HTML,
+) -> None:
+    photo_id = await get_setting(photo_key, "")
+    if photo_id:
+        try:
+            await message.reply_photo(
+                photo=photo_id,
+                caption=text[:1024],
+                parse_mode=parse_mode,
+                reply_markup=reply_markup,
+            )
+            return
+        except Exception:
+            pass
+    await message.reply_text(
+        text,
+        parse_mode=parse_mode,
+        reply_markup=reply_markup,
+    )
 
 
 def classify_excel_color(cell) -> Optional[str]:
@@ -910,9 +949,10 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     bot_name = context.bot.first_name or "Fast Account Bot"
     tpl = await get_setting("msg_welcome", "⭐ Welcome to {bot_name}!")
     welcome_text = tpl.replace("{bot_name}", f"<b>{bot_name}</b>")
-    await update.message.reply_text(
+    await reply_with_optional_photo(
+        update.message,
         welcome_text,
-        parse_mode=ParseMode.HTML,
+        "photo_welcome",
         reply_markup=await main_keyboard(u.id),
     )
 
@@ -937,7 +977,7 @@ async def handle_work_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text("📋 এই মুহূর্তে কোনো কাজের ক্যাটাগরি চালু নেই।")
         return
     context.user_data["nav"] = "work_cats"
-    await update.message.reply_text("📝 Select work type:", reply_markup=await work_categories_keyboard())
+    await reply_with_optional_photo(update.message, "📝 Select work type:", "photo_work", reply_markup=await work_categories_keyboard())
 
 
 async def send_next_step_prompt(chat_id: int, context: ContextTypes.DEFAULT_TYPE, task: Dict[str, Any]) -> None:
@@ -1118,7 +1158,7 @@ async def handle_balance(update: Update) -> None:
         f"✅ <b>Completed Jobs:</b> {u['completed_jobs']}\n"
         f"🔍 <b>In Review Jobs:</b> {in_review}"
     )
-    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+    await reply_with_optional_photo(update.message, text, "photo_balance")
 
 
 async def handle_referral(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1139,7 +1179,7 @@ async def handle_referral(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             ikb_btn("⚠️ Rules", callback_data="ref:rules", style="primary"),
         ],
     ])
-    await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    await reply_with_optional_photo(update.message, text, "photo_referral", reply_markup=kb)
 
 
 async def handle_withdraw_start(update: Update) -> None:
@@ -1162,12 +1202,13 @@ async def handle_withdraw_start(update: Update) -> None:
         ],
         [ikb_btn("❌ Cancel", callback_data="wd:cancel", style="danger")],
     ])
-    await update.message.reply_text(
+    await reply_with_optional_photo(
+        update.message,
         f"💸 <b>Choose a withdraw method (min ৳{min_w:.0f})</b>\n"
         f"• bKash — ৳{fee:.0f} gateway fee\n"
         f"• Nagad — ৳{fee:.0f} gateway fee\n"
         f"• Binance — ৳{fee:.0f} gateway fee",
-        parse_mode=ParseMode.HTML,
+        "photo_withdraw",
         reply_markup=kb,
     )
 
@@ -1179,8 +1220,10 @@ async def handle_file_submit_menu(update: Update) -> None:
         return
     rows = [[kb_btn(f"📁 {c['name']} Submit ▸", style="success")] for c in cats]
     rows.append([kb_btn("❌ Cancel", style="danger")])
-    await update.message.reply_text(
+    await reply_with_optional_photo(
+        update.message,
         "📁 আপনি কোন ক্যাটাগরির একাউন্ট সাবমিট করতে চান তা নির্বাচন করুন:",
+        "photo_fsub",
         reply_markup=ReplyKeyboardMarkup(rows, resize_keyboard=True),
     )
 
@@ -1191,7 +1234,7 @@ async def handle_guide_menu(update: Update) -> None:
         await update.message.reply_text("ℹ️ এই মুহূর্তে কোনো গাইডলাইন যুক্ত নেই।")
         return
     kb = [[ikb_btn(f"🎬 {g['name']}", callback_data=f"guide:view:{g['id']}", style="primary")] for g in guides]
-    await update.message.reply_text("🆕 আপনি কোন কাজের নিয়ম ও ভিডিও দেখতে চান?", reply_markup=InlineKeyboardMarkup(kb))
+    await reply_with_optional_photo(update.message, "🆕 আপনি কোন কাজের নিয়ম ও ভিডিও দেখতে চান?", "photo_new", reply_markup=InlineKeyboardMarkup(kb))
 
 
 # ==============================================================================
@@ -1216,7 +1259,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if data == "ref:rules":
         bonus = float(await get_setting("referral_bonus", "3"))
         rtpl = await get_setting("msg_ref_rules", "⚠️ <b>Referral Rules</b>\n\n• প্রতি কাজের জন্য আপনি ৳{bonus} করে বোনাস পাবেন!")
-        await query.message.reply_text(rtpl.replace("{bonus}", f"{bonus:.0f}"), parse_mode=ParseMode.HTML)
+        await reply_with_optional_photo(query.message, rtpl.replace("{bonus}", f"{bonus:.0f}"), "photo_ref_rules")
         return
 
     if data == "ref:leaderboard":
@@ -1330,13 +1373,59 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         return
 
     if action == "edit_msgs":
-        kb = [
-            [ikb_btn("👋 Edit Welcome Message", callback_data="adm:emsg:msg_welcome", style="primary")],
-            [ikb_btn("💬 Edit Support Message", callback_data="adm:emsg:msg_support", style="primary")],
-            [ikb_btn("⚠️ Edit Referral Rules", callback_data="adm:emsg:msg_ref_rules", style="primary")],
-            [ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")],
-        ]
-        await query.edit_message_text("📝 <b>Edit Bot Messages</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(kb))
+        kb = []
+        for skey, (slabel, _, pkey) in MSG_SLOTS.items():
+            has_p = "🖼 " if await get_setting(pkey, "") else ""
+            kb.append([ikb_btn(f"{has_p}{slabel}", callback_data=f"adm:mslot:{skey}", style="primary")])
+        kb.append([ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")])
+        await query.edit_message_text(
+            "📝 <b>Edit Bot Messages & Photos</b>\nযেকোনো মেসেজে ফটো বা টেক্সট সেট করতে নিচে থেকে সিলেক্ট করুন:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(kb),
+        )
+        return
+
+    if action == "mslot":
+        skey = parts[2]
+        if skey not in MSG_SLOTS:
+            return
+        slabel, mkey, pkey = MSG_SLOTS[skey]
+        has_photo = bool(await get_setting(pkey, ""))
+        kb = []
+        if mkey:
+            kb.append([ikb_btn("✏️ Edit Text", callback_data=f"adm:emsg:{mkey}", style="primary")])
+        kb.append([ikb_btn("🖼 Set / Change Photo", callback_data=f"adm:mphoto:{skey}", style="success")])
+        if has_photo:
+            kb.append([ikb_btn("🗑 Remove Photo", callback_data=f"adm:mphoto_del:{skey}", style="danger")])
+        kb.append([ikb_btn("⬅️ Back", callback_data="adm:edit_msgs", style="primary")])
+        cur_txt = f"\n\n<b>বর্তমান টেক্সট:</b>\n<code>{await get_setting(mkey, '')}</code>" if mkey else ""
+        p_status = "✅ Photo Set" if has_photo else "❌ No Photo"
+        await query.edit_message_text(
+            f"⚙️ <b>{slabel}</b>\n📷 Photo: <b>{p_status}</b>{cur_txt}",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(kb),
+        )
+        return
+
+    if action == "mphoto":
+        skey = parts[2]
+        if skey not in MSG_SLOTS:
+            return
+        slabel, _, _ = MSG_SLOTS[skey]
+        context.user_data["state"] = f"adm_mphoto:{skey}"
+        await query.edit_message_text(
+            f"🖼 <b>{slabel}</b>-এর জন্য আপনার ফটো (Photo) এখানে পাঠান:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[ikb_btn("⬅️ Back", callback_data=f"adm:mslot:{skey}", style="primary")]]),
+        )
+        return
+
+    if action == "mphoto_del":
+        skey = parts[2]
+        if skey in MSG_SLOTS:
+            _, _, pkey = MSG_SLOTS[skey]
+            await set_setting(pkey, "")
+        await handle_admin_callback(query, context, f"adm:mslot:{skey}")
         return
 
     if action == "emsg":
@@ -1344,7 +1433,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         context.user_data["state"] = f"adm_emsg:{mkey}"
         cur_val = await get_setting(mkey, "")
         await query.edit_message_text(
-            f"বর্তমান মেসেজ:\n<code>{cur_val}</code>\n\nনতুন মেসেজটি লিখে পাঠান:",
+            f"বর্তমান মেসেজ:\n<code>{cur_val}</code>\n\nনতুন মেসেজটি লিখে পাঠান (অথবা ক্যাপশনসহ ফটো পাঠালেও টেক্সট ও ফটো একসাথে সেট হবে):",
             parse_mode=ParseMode.HTML,
             reply_markup=back_to_admin_kb(),
         )
@@ -2089,9 +2178,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         log_activity_bg(uid, "MENU", "Support")
         sup = await get_setting("support_link", "https://t.me/Talha_juba098")
         sup_msg = await get_setting("msg_support", "💬 <b>Customer Support</b>\n\nDear member,\nContact our support team for any problem or question. We will try to solve it quickly.")
-        await update.message.reply_text(
+        await reply_with_optional_photo(
+            update.message,
             sup_msg,
-            parse_mode=ParseMode.HTML,
+            "photo_support",
             reply_markup=InlineKeyboardMarkup([[ikb_btn("📞 Contact Support", url=sup, style="primary")]]),
         )
     elif text in (lbl["new"], "🆕 I'm New", "🆕 আমি নতুন", "আমি নতুন"):
@@ -2527,9 +2617,31 @@ async def handle_stateful_message(update: Update, context: ContextTypes.DEFAULT_
         await msg.reply_text(f"✅ {aid} কে অ্যাডমিন করা হয়েছে।", reply_markup=back_to_admin_kb())
         return
 
+    if state.startswith("adm_mphoto:"):
+        skey = state.split(":", 1)[1]
+        if not msg.photo:
+            await msg.reply_text("❌ অনুগ্রহ করে একটি ফটো (Photo) পাঠান (ফাইল হিসেবে নয়, সরাসরি Photo হিসেবে পাঠান)।")
+            return
+        if skey in MSG_SLOTS:
+            _, _, pkey = MSG_SLOTS[skey]
+            await set_setting(pkey, msg.photo[-1].file_id)
+        context.user_data.pop("state", None)
+        await msg.reply_text("✅ ফটো সেট হয়েছে!", reply_markup=InlineKeyboardMarkup([[ikb_btn("⬅️ Back", callback_data=f"adm:mslot:{skey}", style="primary")]]))
+        return
+
     if state.startswith("adm_emsg:"):
         mkey = state.split(":", 1)[1]
-        await set_setting(mkey, text)
+        new_txt = (msg.caption or text).strip()
+        if not new_txt and not msg.photo:
+            await msg.reply_text("❌ অনুগ্রহ করে মেসেজটি লিখে পাঠান।")
+            return
+        if new_txt:
+            await set_setting(mkey, new_txt)
+        if msg.photo:
+            for _, mk, pk in MSG_SLOTS.values():
+                if mk == mkey:
+                    await set_setting(pk, msg.photo[-1].file_id)
+                    break
         context.user_data.pop("state", None)
         await msg.reply_text("✅ মেসেজ আপডেট হয়েছে!", reply_markup=back_to_admin_kb())
         return
