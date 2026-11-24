@@ -368,6 +368,14 @@ class AsyncDatabase:
             "msg_welcome": "⭐ Welcome to {bot_name}!\n\n⭐ এই Bot-এর মাধ্যমে আপনি খুব সহজেই আপনার Facebook / Instagram / অন্যান্য File Submit করতে পারবেন।\n\n⭐ File Submit করার আগে অবশ্যই সকল Rules অনুসরণ করুন।\n\n⭐ নিচের Menu থেকে আপনার প্রয়োজনীয় Option নির্বাচন করে File Submit করুন।",
             "msg_support": "💬 <b>Customer Support</b>\n\nDear member,\nContact our support team for any problem or question. We will try to solve it quickly.",
             "msg_ref_rules": "⚠️ <b>Referral Rules</b>\n\n• আপনার রেফারেল লিংক দিয়ে কেউ জয়েন করে কাজ করলে প্রতি কাজের জন্য আপনি <b>৳{bonus}</b> করে বোনাস পাবেন!\n• Fake/spam accounts may have commission cancelled.\n• You cannot refer yourself.",
+            "msg_work": "📝 Select work type:",
+            "msg_fsub": "📁 আপনি কোন ক্যাটাগরির একাউন্ট সাবমিট করতে চান তা নির্বাচন করুন:",
+            "msg_bal": "💰 <b>Your Balance</b>\n\n💵 <b>Total Balance:</b> ৳{balance}\n⏳ <b>Pending Withdraw:</b> ৳{pending}\n📈 <b>Total Income:</b> ৳{income}\n✅ <b>Completed Jobs:</b> {completed}\n🔍 <b>In Review Jobs:</b> {in_review}",
+            "msg_wd": "💸 <b>Choose a withdraw method (min ৳{min_w})</b>\n• bKash — ৳{fee} gateway fee\n• Nagad — ৳{fee} gateway fee\n• Binance — ৳{fee} gateway fee",
+            "msg_ref": "🎁 <b>Refer & Earn</b>\n\n👥 <b>Total Refer:</b> {ref_count}\n💵 <b>Total Refer Income:</b> ৳{ref_earn}\n\n🔗 <b>Your referral link:</b>\n<code>{link}</code>",
+            "msg_new": "🆕 আপনি কোন কাজের নিয়ম ও ভিডিও দেখতে চান?",
+            "msg_fjoin": "📢 বটটি ব্যবহার করতে প্রথমে আমাদের অফিসিয়াল চ্যানেলে জয়েন করুন, তারপর নিচের <b>Joined</b> বাটনে চাপ দিন:",
+            "btn_styles_json": "{}",
             "force_join_active": "0",
             "force_join_channel": "",
             "force_join_link": "",
@@ -430,6 +438,141 @@ _USERS_CACHE: Dict[int, Dict[str, Any]] = {}
 _CATS_CACHE: Optional[List[Dict[str, Any]]] = None
 _SUBS_CACHE: Dict[int, List[Dict[str, Any]]] = {}
 _FJOIN_OK_CACHE: Dict[int, float] = {}
+
+DEFAULT_BTN_STYLES: Dict[str, str] = {
+    # Main Menu
+    "main_work": "success",
+    "main_fsub": "primary",
+    "main_bal": "primary",
+    "main_wd": "primary",
+    "main_ref": "primary",
+    "main_sup": "primary",
+    "main_new": "primary",
+    "main_extra": "primary",
+    "main_admin": "primary",
+    # Work & Flow
+    "work_cat": "primary",
+    "work_sub": "primary",
+    "work_back": "danger",
+    "work_step": "success",
+    "fsub_cat": "success",
+    "cancel": "danger",
+    # User Inline Buttons
+    "inline_fjoin": "primary",
+    "inline_ref_fwd": "primary",
+    "inline_ref_lb": "primary",
+    "inline_ref_rules": "primary",
+    "inline_wd_method": "primary",
+    "inline_guide": "primary",
+    "inline_support": "primary",
+    # Admin Panel Buttons
+    "adm_toggle_bot": "primary",
+    "adm_fjoin_mgr": "primary",
+    "adm_pending": "success",
+    "adm_upload_rep": "success",
+    "adm_fsub_rep": "primary",
+    "adm_view_inbox": "primary",
+    "adm_send_inbox": "primary",
+    "adm_work_mgr": "success",
+    "adm_bal_mgr": "success",
+    "adm_pwd_mgr": "primary",
+    "adm_btn_mgr": "primary",
+    "adm_guide_mgr": "primary",
+    "adm_fsub_mgr": "success",
+    "adm_user_dir": "primary",
+    "adm_file_hist": "primary",
+    "adm_del_user": "danger",
+    "adm_admins": "primary",
+    "adm_broadcast": "primary",
+    "adm_edit_msgs": "primary",
+    "adm_color_mgr": "primary",
+    "adm_edit_sup": "primary",
+    "adm_close": "primary",
+    "adm_back": "primary",
+}
+
+BTN_COLOR_GROUPS: Dict[str, Tuple[str, List[Tuple[str, str]]]] = {
+    "main": (
+        "🏠 Main Menu Buttons",
+        [
+            ("main_work", "💼 Work"),
+            ("main_fsub", "📁 File Submit"),
+            ("main_bal", "💰 Balance"),
+            ("main_wd", "💸 Withdraw"),
+            ("main_ref", "🎁 My Referral"),
+            ("main_sup", "🆘 Support"),
+            ("main_new", "🆕 I'm New"),
+            ("main_extra", "➕ Extra Custom Buttons"),
+            ("main_admin", "⚙️ Admin Panel"),
+        ],
+    ),
+    "work": (
+        "💼 Work & Flow Buttons",
+        [
+            ("work_cat", "📸 Work Category (Instagram ইত্যাদি)"),
+            ("work_sub", "📌 Subcategory (USA Instagram ইত্যাদি)"),
+            ("work_step", "🔑 Task Step Button"),
+            ("work_back", "◀️ Work Menu Back"),
+            ("fsub_cat", "📁 File Submit Category"),
+            ("cancel", "❌ Cancel Button"),
+        ],
+    ),
+    "inline": (
+        "📩 User Inline Buttons",
+        [
+            ("inline_fjoin", "📢 Force Join & Check"),
+            ("inline_ref_fwd", "📤 Forward Referral"),
+            ("inline_ref_lb", "🏆 Team Leaderboard"),
+            ("inline_ref_rules", "⚠️ Referral Rules"),
+            ("inline_wd_method", "💳 Withdraw Methods (bKash/Nagad/Binance)"),
+            ("inline_guide", "🎬 Guide Items"),
+            ("inline_support", "📞 Contact Support"),
+        ],
+    ),
+    "admin": (
+        "⚙️ Admin Panel Buttons",
+        [
+            ("adm_toggle_bot", "🟢/🔴 Bot Status"),
+            ("adm_fjoin_mgr", "📢 Force Join"),
+            ("adm_pending", "📂 Pending Work"),
+            ("adm_upload_rep", "📤 Work Report (.xlsx)"),
+            ("adm_fsub_rep", "📊 File Submit Report (.xlsx)"),
+            ("adm_view_inbox", "👁 View User Inbox"),
+            ("adm_send_inbox", "📩 Send to User Inbox"),
+            ("adm_work_mgr", "🛠 Work & Steps"),
+            ("adm_bal_mgr", "💰 Balance & Withdraw"),
+            ("adm_pwd_mgr", "🔑 Password Settings"),
+            ("adm_btn_mgr", "⌨️ Main Buttons"),
+            ("adm_guide_mgr", "🎬 আমি নতুন (Guides)"),
+            ("adm_fsub_mgr", "📁 File Submit Cats"),
+            ("adm_user_dir", "👥 User Directory"),
+            ("adm_file_hist", "📜 File History Report"),
+            ("adm_del_user", "🗑 Delete User Data"),
+            ("adm_admins", "👮 Manage Admins"),
+            ("adm_broadcast", "📢 Broadcast"),
+            ("adm_edit_msgs", "📝 Edit Bot Messages"),
+            ("adm_color_mgr", "🎨 Button Colors"),
+            ("adm_edit_sup", "🆘 Edit Support Link"),
+            ("adm_close", "❌ Close Panel"),
+            ("adm_back", "⬅️ Back to Admin Panel"),
+        ],
+    ),
+}
+
+
+def btn_style(key: str) -> str:
+    raw = _SETTINGS_CACHE.get("btn_styles_json", "{}")
+    try:
+        custom = json.loads(raw)
+        if key in custom and custom[key] in ("primary", "success", "danger"):
+            return custom[key]
+    except Exception:
+        pass
+    return DEFAULT_BTN_STYLES.get(key, "primary")
+
+
+def style_badge(st: str) -> str:
+    return {"primary": "🔵", "success": "🟢", "danger": "🔴"}.get(st, "🔵")
 
 
 async def warm_caches() -> None:
@@ -649,13 +792,16 @@ async def check_force_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         _FJOIN_OK_CACHE[uid] = now_ts
         return True
 
-    btns = [[ikb_btn(f"📢 {c.get('label', 'Join Channel')}", url=c["link"], style="primary")] for c in unjoined]
-    btns.append([ikb_btn("✅ Joined / Check Again", callback_data="fjoin:check", style="primary")])
+    fjoin_st = btn_style("inline_fjoin")
+    btns = [[ikb_btn(f"📢 {c.get('label', 'Join Channel')}", url=c["link"], style=fjoin_st)] for c in unjoined]
+    btns.append([ikb_btn("✅ Joined / Check Again", callback_data="fjoin:check", style=fjoin_st)])
     kb = InlineKeyboardMarkup(btns)
     if update.effective_message:
-        await update.effective_message.reply_text(
-            "📢 বটটি ব্যবহার করতে প্রথমে আমাদের অফিসিয়াল চ্যানেলে জয়েন করুন, তারপর নিচের <b>Joined</b> বাটনে চাপ দিন:",
-            parse_mode=ParseMode.HTML,
+        fj_msg = await get_setting("msg_fjoin", "📢 বটটি ব্যবহার করতে প্রথমে আমাদের অফিসিয়াল চ্যানেলে জয়েন করুন, তারপর নিচের <b>Joined</b> বাটনে চাপ দিন:")
+        await reply_with_optional_photo(
+            update.effective_message,
+            fj_msg,
+            "photo_fjoin",
             reply_markup=kb,
         )
     return False
@@ -684,29 +830,29 @@ async def main_keyboard(user_id: int) -> ReplyKeyboardMarkup:
         extra_btns = []
 
     rows = [
-        [kb_btn(lbl["work"], style="success"), kb_btn(lbl["fsub"], style="primary")],
-        [kb_btn(lbl["bal"], style="primary"), kb_btn(lbl["wd"], style="primary")],
-        [kb_btn(lbl["ref"], style="primary"), kb_btn(lbl["sup"], style="primary")],
-        [kb_btn(lbl["new"], style="primary")],
+        [kb_btn(lbl["work"], style=btn_style("main_work")), kb_btn(lbl["fsub"], style=btn_style("main_fsub"))],
+        [kb_btn(lbl["bal"], style=btn_style("main_bal")), kb_btn(lbl["wd"], style=btn_style("main_wd"))],
+        [kb_btn(lbl["ref"], style=btn_style("main_ref")), kb_btn(lbl["sup"], style=btn_style("main_sup"))],
+        [kb_btn(lbl["new"], style=btn_style("main_new"))],
     ]
     for i in range(0, len(extra_btns), 2):
-        rows.append([kb_btn(b["label"], style="primary") for b in extra_btns[i : i + 2]])
+        rows.append([kb_btn(b["label"], style=btn_style("main_extra")) for b in extra_btns[i : i + 2]])
     if await is_admin(user_id):
-        rows.append([kb_btn("⚙️ Admin Panel", style="primary")])
+        rows.append([kb_btn("⚙️ Admin Panel", style=btn_style("main_admin"))])
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
 async def work_categories_keyboard() -> ReplyKeyboardMarkup:
     cats = await get_active_categories()
-    rows = [[kb_btn(f"{c.get('emoji', '📌')} {c['name']} Work ▸", style="primary")] for c in cats]
-    rows.append([kb_btn("❌ Cancel", style="danger")])
+    rows = [[kb_btn(f"{c.get('emoji', '📌')} {c['name']} Work ▸", style=btn_style("work_cat"))] for c in cats]
+    rows.append([kb_btn("❌ Cancel", style=btn_style("cancel"))])
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
 async def work_subcategories_keyboard(cat_id: int) -> ReplyKeyboardMarkup:
     subs = await get_active_subcategories(cat_id)
-    rows = [[kb_btn(f"{s['name']} • ৳{s['rate']:.0f}", style="primary")] for s in subs]
-    rows.append([kb_btn("◀️ Work Menu ▸", style="danger"), kb_btn("❌ Cancel", style="danger")])
+    rows = [[kb_btn(f"{s['name']} • ৳{s['rate']:.0f}", style=btn_style("work_sub"))] for s in subs]
+    rows.append([kb_btn("◀️ Work Menu ▸", style=btn_style("work_back")), kb_btn("❌ Cancel", style=btn_style("cancel"))])
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
@@ -717,66 +863,70 @@ async def admin_panel_keyboard() -> InlineKeyboardMarkup:
     fj_label = "📢 Force Join: ON" if fj_active else "📢 Force Join: OFF"
     kb = [
         [
-            ikb_btn(status_label, callback_data="adm:toggle_bot", style="primary"),
-            ikb_btn(fj_label, callback_data="adm:fjoin_mgr", style="primary"),
+            ikb_btn(status_label, callback_data="adm:toggle_bot", style=btn_style("adm_toggle_bot")),
+            ikb_btn(fj_label, callback_data="adm:fjoin_mgr", style=btn_style("adm_fjoin_mgr")),
         ],
         [
-            ikb_btn("📂 Pending Work", callback_data="adm:pending_files", style="success"),
-            ikb_btn("📤 Work Report (.xlsx)", callback_data="adm:upload_report", style="success"),
+            ikb_btn("📂 Pending Work", callback_data="adm:pending_files", style=btn_style("adm_pending")),
+            ikb_btn("📤 Work Report (.xlsx)", callback_data="adm:upload_report", style=btn_style("adm_upload_rep")),
         ],
         [
-            ikb_btn("📊 File Submit Report (.xlsx)", callback_data="adm:fsub_report_pick", style="primary"),
+            ikb_btn("📊 File Submit Report (.xlsx)", callback_data="adm:fsub_report_pick", style=btn_style("adm_fsub_rep")),
         ],
         [
-            ikb_btn("👁 View User Inbox", callback_data="adm:view_inbox_ask", style="primary"),
-            ikb_btn("📩 Send to User Inbox", callback_data="adm:inbox_upload", style="primary"),
+            ikb_btn("👁 View User Inbox", callback_data="adm:view_inbox_ask", style=btn_style("adm_view_inbox")),
+            ikb_btn("📩 Send to User Inbox", callback_data="adm:inbox_upload", style=btn_style("adm_send_inbox")),
         ],
         [
-            ikb_btn("🛠 Work & Steps", callback_data="adm:work_mgr", style="success"),
-            ikb_btn("💰 Balance & Withdraw", callback_data="adm:bal_mgr", style="success"),
+            ikb_btn("🛠 Work & Steps", callback_data="adm:work_mgr", style=btn_style("adm_work_mgr")),
+            ikb_btn("💰 Balance & Withdraw", callback_data="adm:bal_mgr", style=btn_style("adm_bal_mgr")),
         ],
         [
-            ikb_btn("🔑 Password Settings", callback_data="adm:pwd_mgr", style="primary"),
-            ikb_btn("⌨️ Main Buttons", callback_data="adm:btn_mgr", style="primary"),
+            ikb_btn("🔑 Password Settings", callback_data="adm:pwd_mgr", style=btn_style("adm_pwd_mgr")),
+            ikb_btn("⌨️ Main Buttons", callback_data="adm:btn_mgr", style=btn_style("adm_btn_mgr")),
         ],
         [
-            ikb_btn("🎬 আমি নতুন (Guides)", callback_data="adm:guide_mgr", style="primary"),
-            ikb_btn("📁 File Submit Cats", callback_data="adm:fsub_mgr", style="success"),
+            ikb_btn("🎬 আমি নতুন (Guides)", callback_data="adm:guide_mgr", style=btn_style("adm_guide_mgr")),
+            ikb_btn("📁 File Submit Cats", callback_data="adm:fsub_mgr", style=btn_style("adm_fsub_mgr")),
         ],
         [
-            ikb_btn("👥 User Directory", callback_data="adm:user_dir:0", style="primary"),
-            ikb_btn("📜 File History Report", callback_data="adm:file_history", style="primary"),
+            ikb_btn("👥 User Directory", callback_data="adm:user_dir:0", style=btn_style("adm_user_dir")),
+            ikb_btn("📜 File History Report", callback_data="adm:file_history", style=btn_style("adm_file_hist")),
         ],
         [
-            ikb_btn("🗑 Delete User Data", callback_data="adm:del_user", style="danger"),
-            ikb_btn("👮 Manage Admins", callback_data="adm:admins", style="primary"),
+            ikb_btn("🗑 Delete User Data", callback_data="adm:del_user", style=btn_style("adm_del_user")),
+            ikb_btn("👮 Manage Admins", callback_data="adm:admins", style=btn_style("adm_admins")),
         ],
         [
-            ikb_btn("📢 Broadcast", callback_data="adm:broadcast", style="primary"),
-            ikb_btn("📝 Edit Bot Messages", callback_data="adm:edit_msgs", style="primary"),
+            ikb_btn("📢 Broadcast", callback_data="adm:broadcast", style=btn_style("adm_broadcast")),
+            ikb_btn("📝 Edit Bot Messages", callback_data="adm:edit_msgs", style=btn_style("adm_edit_msgs")),
         ],
         [
-            ikb_btn("🆘 Edit Support Link", callback_data="adm:edit_support", style="primary"),
-            ikb_btn("❌ Close Panel", callback_data="adm:close", style="primary"),
+            ikb_btn("🎨 Button Colors", callback_data="adm:color_mgr", style=btn_style("adm_color_mgr")),
+            ikb_btn("🆘 Edit Support Link", callback_data="adm:edit_support", style=btn_style("adm_edit_sup")),
+        ],
+        [
+            ikb_btn("❌ Close Panel", callback_data="adm:close", style=btn_style("adm_close")),
         ],
     ]
     return InlineKeyboardMarkup(kb)
 
 
 def back_to_admin_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style="primary")]])
+    return InlineKeyboardMarkup([[ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style=btn_style("adm_back"))]])
 
 
 MSG_SLOTS: Dict[str, Tuple[str, Optional[str], str]] = {
     "welcome": ("👋 Welcome Message", "msg_welcome", "photo_welcome"),
     "support": ("💬 Support Message", "msg_support", "photo_support"),
     "ref_rules": ("⚠️ Referral Rules", "msg_ref_rules", "photo_ref_rules"),
-    "work": ("💼 Work Menu", None, "photo_work"),
-    "fsub": ("📁 File Submit Menu", None, "photo_fsub"),
-    "bal": ("💰 Balance", None, "photo_balance"),
-    "wd": ("💸 Withdraw", None, "photo_withdraw"),
-    "ref": ("🎁 My Referral", None, "photo_referral"),
-    "new": ("🆕 I'm New", None, "photo_new"),
+    "work": ("💼 Work Menu", "msg_work", "photo_work"),
+    "fsub": ("📁 File Submit Menu", "msg_fsub", "photo_fsub"),
+    "bal": ("💰 Balance", "msg_bal", "photo_balance"),
+    "wd": ("💸 Withdraw", "msg_wd", "photo_withdraw"),
+    "ref": ("🎁 My Referral", "msg_ref", "photo_referral"),
+    "new": ("🆕 I'm New", "msg_new", "photo_new"),
+    "fjoin": ("📢 Force Join Message", "msg_fjoin", "photo_fjoin"),
 }
 
 
@@ -977,14 +1127,15 @@ async def handle_work_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text("📋 এই মুহূর্তে কোনো কাজের ক্যাটাগরি চালু নেই।")
         return
     context.user_data["nav"] = "work_cats"
-    await reply_with_optional_photo(update.message, "📝 Select work type:", "photo_work", reply_markup=await work_categories_keyboard())
+    w_msg = await get_setting("msg_work", "📝 Select work type:")
+    await reply_with_optional_photo(update.message, w_msg, "photo_work", reply_markup=await work_categories_keyboard())
 
 
 async def send_next_step_prompt(chat_id: int, context: ContextTypes.DEFAULT_TYPE, task: Dict[str, Any]) -> None:
     steps = task["steps"]
     idx = task["step_idx"]
     step = steps[idx]
-    kb = ReplyKeyboardMarkup([[kb_btn(f"🔑 {step['name']}", style="success")], [kb_btn("❌ Cancel", style="danger")]], resize_keyboard=True)
+    kb = ReplyKeyboardMarkup([[kb_btn(f"🔑 {step['name']}", style=btn_style("work_step"))], [kb_btn("❌ Cancel", style=btn_style("cancel"))]], resize_keyboard=True)
     msg = await context.bot.send_message(
         chat_id=chat_id,
         text=f"🔹 ধাপ {idx + 1}/{len(steps)}: নিচের <b>{step['name']}</b> বাটনে ট্যাপ করুন অথবা Cancel করুন।",
@@ -1150,13 +1301,16 @@ async def handle_balance(update: Update) -> None:
     in_review = (
         await db.fetchone("SELECT COUNT(*) AS cnt FROM submissions WHERE user_id = ? AND status IN ('pending', 'received')", (uid,))
     )["cnt"]
+    btpl = await get_setting(
+        "msg_bal",
+        "💰 <b>Your Balance</b>\n\n💵 <b>Total Balance:</b> ৳{balance}\n⏳ <b>Pending Withdraw:</b> ৳{pending}\n📈 <b>Total Income:</b> ৳{income}\n✅ <b>Completed Jobs:</b> {completed}\n🔍 <b>In Review Jobs:</b> {in_review}",
+    )
     text = (
-        "💰 <b>Your Balance</b>\n\n"
-        f"💵 <b>Total Balance:</b> ৳{u['balance']:.2f}\n"
-        f"⏳ <b>Pending Withdraw:</b> ৳{u['pending_withdraw']:.2f}\n"
-        f"📈 <b>Total Income:</b> ৳{u['total_income']:.2f}\n"
-        f"✅ <b>Completed Jobs:</b> {u['completed_jobs']}\n"
-        f"🔍 <b>In Review Jobs:</b> {in_review}"
+        btpl.replace("{balance}", f"{u['balance']:.2f}")
+        .replace("{pending}", f"{u['pending_withdraw']:.2f}")
+        .replace("{income}", f"{u['total_income']:.2f}")
+        .replace("{completed}", str(u["completed_jobs"]))
+        .replace("{in_review}", str(in_review))
     )
     await reply_with_optional_photo(update.message, text, "photo_balance")
 
@@ -1166,17 +1320,20 @@ async def handle_referral(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     invalidate_user_cache(uid)
     u = await ensure_user(update)
     link = f"https://t.me/{context.bot.username}?start={uid}"
+    rtpl = await get_setting(
+        "msg_ref",
+        "🎁 <b>Refer & Earn</b>\n\n👥 <b>Total Refer:</b> {ref_count}\n💵 <b>Total Refer Income:</b> ৳{ref_earn}\n\n🔗 <b>Your referral link:</b>\n<code>{link}</code>",
+    )
     text = (
-        "🎁 <b>Refer & Earn</b>\n\n"
-        f"👥 <b>Total Refer:</b> {u['referral_count']}\n"
-        f"💵 <b>Total Refer Income:</b> ৳{u['referral_earnings']:.2f}\n\n"
-        f"🔗 <b>Your referral link:</b>\n<code>{link}</code>"
+        rtpl.replace("{ref_count}", str(u["referral_count"]))
+        .replace("{ref_earn}", f"{u['referral_earnings']:.2f}")
+        .replace("{link}", link)
     )
     kb = InlineKeyboardMarkup([
-        [ikb_btn("📤 Forward This Message", switch_inline_query=f"Join & earn easily! {link}", style="primary")],
+        [ikb_btn("📤 Forward This Message", switch_inline_query=f"Join & earn easily! {link}", style=btn_style("inline_ref_fwd"))],
         [
-            ikb_btn("🏆 Team Leaderboard", callback_data="ref:leaderboard", style="primary"),
-            ikb_btn("⚠️ Rules", callback_data="ref:rules", style="primary"),
+            ikb_btn("🏆 Team Leaderboard", callback_data="ref:leaderboard", style=btn_style("inline_ref_lb")),
+            ikb_btn("⚠️ Rules", callback_data="ref:rules", style=btn_style("inline_ref_rules")),
         ],
     ])
     await reply_with_optional_photo(update.message, text, "photo_referral", reply_markup=kb)
@@ -1194,20 +1351,23 @@ async def handle_withdraw_start(update: Update) -> None:
             parse_mode=ParseMode.HTML,
         )
         return
+    wm_st = btn_style("inline_wd_method")
     kb = InlineKeyboardMarkup([
         [
-            ikb_btn("bKash", callback_data="wd:method:bKash", style="primary"),
-            ikb_btn("Nagad", callback_data="wd:method:Nagad", style="primary"),
-            ikb_btn("Binance", callback_data="wd:method:Binance", style="primary"),
+            ikb_btn("bKash", callback_data="wd:method:bKash", style=wm_st),
+            ikb_btn("Nagad", callback_data="wd:method:Nagad", style=wm_st),
+            ikb_btn("Binance", callback_data="wd:method:Binance", style=wm_st),
         ],
-        [ikb_btn("❌ Cancel", callback_data="wd:cancel", style="danger")],
+        [ikb_btn("❌ Cancel", callback_data="wd:cancel", style=btn_style("cancel"))],
     ])
+    wtpl = await get_setting(
+        "msg_wd",
+        "💸 <b>Choose a withdraw method (min ৳{min_w})</b>\n• bKash — ৳{fee} gateway fee\n• Nagad — ৳{fee} gateway fee\n• Binance — ৳{fee} gateway fee",
+    )
+    w_text = wtpl.replace("{min_w}", f"{min_w:.0f}").replace("{fee}", f"{fee:.0f}")
     await reply_with_optional_photo(
         update.message,
-        f"💸 <b>Choose a withdraw method (min ৳{min_w:.0f})</b>\n"
-        f"• bKash — ৳{fee:.0f} gateway fee\n"
-        f"• Nagad — ৳{fee:.0f} gateway fee\n"
-        f"• Binance — ৳{fee:.0f} gateway fee",
+        w_text,
         "photo_withdraw",
         reply_markup=kb,
     )
@@ -1218,11 +1378,12 @@ async def handle_file_submit_menu(update: Update) -> None:
     if not cats:
         await update.message.reply_text("👤 No file submit categories are active right now.")
         return
-    rows = [[kb_btn(f"📁 {c['name']} Submit ▸", style="success")] for c in cats]
-    rows.append([kb_btn("❌ Cancel", style="danger")])
+    rows = [[kb_btn(f"📁 {c['name']} Submit ▸", style=btn_style("fsub_cat"))] for c in cats]
+    rows.append([kb_btn("❌ Cancel", style=btn_style("cancel"))])
+    fsub_msg = await get_setting("msg_fsub", "📁 আপনি কোন ক্যাটাগরির একাউন্ট সাবমিট করতে চান তা নির্বাচন করুন:")
     await reply_with_optional_photo(
         update.message,
-        "📁 আপনি কোন ক্যাটাগরির একাউন্ট সাবমিট করতে চান তা নির্বাচন করুন:",
+        fsub_msg,
         "photo_fsub",
         reply_markup=ReplyKeyboardMarkup(rows, resize_keyboard=True),
     )
@@ -1233,8 +1394,9 @@ async def handle_guide_menu(update: Update) -> None:
     if not guides:
         await update.message.reply_text("ℹ️ এই মুহূর্তে কোনো গাইডলাইন যুক্ত নেই।")
         return
-    kb = [[ikb_btn(f"🎬 {g['name']}", callback_data=f"guide:view:{g['id']}", style="primary")] for g in guides]
-    await reply_with_optional_photo(update.message, "🆕 আপনি কোন কাজের নিয়ম ও ভিডিও দেখতে চান?", "photo_new", reply_markup=InlineKeyboardMarkup(kb))
+    kb = [[ikb_btn(f"🎬 {g['name']}", callback_data=f"guide:view:{g['id']}", style=btn_style("inline_guide"))] for g in guides]
+    new_msg = await get_setting("msg_new", "🆕 আপনি কোন কাজের নিয়ম ও ভিডিও দেখতে চান?")
+    await reply_with_optional_photo(update.message, new_msg, "photo_new", reply_markup=InlineKeyboardMarkup(kb))
 
 
 # ==============================================================================
@@ -2035,6 +2197,70 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await query.edit_message_text("📢 সব ইউজার ও গ্রুপে পাঠানোর জন্য মেসেজ (বা ছবি/ভিডিও) দিন:", reply_markup=back_to_admin_kb())
         return
 
+    if action == "color_mgr":
+        kb = [[ikb_btn(glabel, callback_data=f"adm:clr_grp:{gkey}", style="primary")] for gkey, (glabel, _) in BTN_COLOR_GROUPS.items()]
+        kb.append([ikb_btn("🔄 Reset All Colors to Default", callback_data="adm:clr_reset", style="danger")])
+        kb.append([ikb_btn("⬅️ Back to Admin Panel", callback_data="adm:home", style=btn_style("adm_back"))])
+        await query.edit_message_text(
+            "🎨 <b>Button Color Manager</b>\nকোন সেকশনের বাটনের কালার পরিবর্তন করতে চান তা সিলেক্ট করুন:\n🔵 Blue (primary) | 🟢 Green (success) | 🔴 Red (danger)",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(kb),
+        )
+        return
+
+    if action == "clr_grp":
+        gkey = parts[2]
+        if gkey not in BTN_COLOR_GROUPS:
+            return
+        glabel, items = BTN_COLOR_GROUPS[gkey]
+        kb = [
+            [ikb_btn(f"{style_badge(btn_style(bkey))} {blabel}", callback_data=f"adm:clr_pick:{gkey}:{bkey}", style=btn_style(bkey))]
+            for bkey, blabel in items
+        ]
+        kb.append([ikb_btn("⬅️ Back", callback_data="adm:color_mgr", style="primary")])
+        await query.edit_message_text(
+            f"🎨 <b>{glabel}</b>\nকালার পরিবর্তন করতে বাটনে ক্লিক করুন:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(kb),
+        )
+        return
+
+    if action == "clr_pick":
+        gkey, bkey = parts[2], parts[3]
+        cur_st = btn_style(bkey)
+        blabel = dict(BTN_COLOR_GROUPS.get(gkey, ("", []))[1]).get(bkey, bkey)
+        kb = [
+            [
+                ikb_btn("🔵 Blue", callback_data=f"adm:clr_set:{gkey}:{bkey}:primary", style="primary"),
+                ikb_btn("🟢 Green", callback_data=f"adm:clr_set:{gkey}:{bkey}:success", style="success"),
+                ikb_btn("🔴 Red", callback_data=f"adm:clr_set:{gkey}:{bkey}:danger", style="danger"),
+            ],
+            [ikb_btn("⬅️ Back", callback_data=f"adm:clr_grp:{gkey}", style="primary")],
+        ]
+        await query.edit_message_text(
+            f"🎨 <b>{blabel}</b>\nবর্তমান কালার: {style_badge(cur_st)} <code>{cur_st}</code>\nনতুন কালার সিলেক্ট করুন:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(kb),
+        )
+        return
+
+    if action == "clr_set":
+        gkey, bkey, new_st = parts[2], parts[3], parts[4]
+        raw = await get_setting("btn_styles_json", "{}")
+        try:
+            custom = json.loads(raw)
+        except Exception:
+            custom = {}
+        custom[bkey] = new_st
+        await set_setting("btn_styles_json", json.dumps(custom, ensure_ascii=False))
+        await handle_admin_callback(query, context, f"adm:clr_grp:{gkey}")
+        return
+
+    if action == "clr_reset":
+        await set_setting("btn_styles_json", "{}")
+        await handle_admin_callback(query, context, "adm:color_mgr")
+        return
+
     if action == "edit_support":
         context.user_data["state"] = "adm_edit_support"
         cur_sup = await get_setting("support_link", "")
@@ -2158,7 +2384,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             f"🖍 <b>Required Format:</b>\n<code>{cat['required_format']}</code>\n\n"
             f"<i>অনুগ্রহ করে উপরের ফরম্যাট অনুযায়ী আপনার .xlsx ফাইলটি এখানে সাবমিট করুন।</i>",
             parse_mode=ParseMode.HTML,
-            reply_markup=ReplyKeyboardMarkup([[kb_btn("❌ Cancel", style="danger")]], resize_keyboard=True),
+            reply_markup=ReplyKeyboardMarkup([[kb_btn("❌ Cancel", style=btn_style("cancel"))]], resize_keyboard=True),
         )
         return
 
@@ -2182,7 +2408,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             update.message,
             sup_msg,
             "photo_support",
-            reply_markup=InlineKeyboardMarkup([[ikb_btn("📞 Contact Support", url=sup, style="primary")]]),
+            reply_markup=InlineKeyboardMarkup([[ikb_btn("📞 Contact Support", url=sup, style=btn_style("inline_support"))]]),
         )
     elif text in (lbl["new"], "🆕 I'm New", "🆕 আমি নতুন", "আমি নতুন"):
         log_activity_bg(uid, "MENU", "আমি নতুন")
